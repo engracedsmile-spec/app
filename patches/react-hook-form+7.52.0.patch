@@ -1,0 +1,41 @@
+diff --git a/node_modules/react-hook-form/dist/index.d.ts b/node_modules/react-hook-form/dist/index.d.ts
+index e208226019550b7f847525381010375a0cdb53a4..e59f635677d206f129ef66a4a15993a40b8a34ff 100644
+--- a/node_modules/react-hook-form/dist/index.d.ts
++++ b/node_modules/react-hook-form/dist/index.d.ts
+@@ -1,5 +1,5 @@
+ import * as React from 'react';
+-import { type Field, type FieldError, type FieldErrors, type FieldNames, type FieldRefs, type FieldValues, type InternalFieldName, type Path, type PathValue, type ValidateResult, type ValidationRule } from './fields';
++import { type Field, type FieldError, type FieldErrors, type FieldName, type FieldNames, type FieldRefs, type FieldValues, type InternalFieldName, type Path, type PathValue, type ValidateResult, type ValidationRule } from './fields';
+ import { type Subject, type Subscription } from './utils/subject';
+ import { type EventType } from './constants';
+ import { type ReadFormState } from './logic/readFormState';
+@@ -1433,7 +1433,7 @@ export declare const useFormState: <TFieldValues extends FieldValues = FieldValu
+  * @param props - the props of `Controller`.
+  *
+  * @returns a `React.Element`
+- *
++ *d
+  * @example
+  * ```tsx
+  * function App() {
+@@ -1445,7 +1445,7 @@ export declare const useFormState: <TFieldValues extends FieldValues = FieldValu
+  *       render={({ field, fieldState, formState }) => <input {...field} />}
+  *     />
+  *   );
+- * }
++ * }s
+  * ```
+  */
+ export declare const Controller: <TFieldValues extends FieldValues = FieldValues, TName extends Path<TFieldValues> = Path<TFieldValues>>(props: ControllerProps<TFieldValues, TName>) => React.ReactElement<any, string | React.JSXElementConstructor<any>>;
+diff --git a/node_modules/react-hook-form/dist/types.d.ts b/node_modules/react-hook-form/dist/types.d.ts
+index 727c62b08059089761f77d543b593a13998f51a4..36d5b0a3bf6cc13b567a142e053f3e12be8f029a 100644
+--- a/node_modules/react-hook-form/dist/types.d.ts
++++ b/node_modules/react-hook-form/dist/types.d.ts
+@@ -1,5 +1,5 @@
+ import * as React from 'react';
+-import { type Field, type FieldError, type FieldErrors, type FieldNames, type FieldRefs, type FieldValues, type InternalFieldName, type Path, type PathValue, type ValidateResult, type ValidationRule } from './fields';
++import { type Field, type FieldError, type FieldErrors, type FieldName, type FieldNames, type FieldRefs, type FieldValues, type InternalFieldName, type Path, type PathValue, type ValidateResult, type ValidationRule } from './fields';
+ import { type Subject, type Subscription } from './utils/subject';
+ import { type EventType } from './constants';
+ import { type ReadFormState } from './logic/readFormState';
+

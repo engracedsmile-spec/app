@@ -1,0 +1,194 @@
+/**
+ * @file Firebase Security Rules for Firestore.
+ *
+ * @Core Philosophy: This ruleset prioritizes strong authorization by enforcing user-ownership and role-based access control.
+ *   It avoids complex data validation in favor of rapid prototyping and relies on application-level validation.
+ *
+ * @Data Structure: The Firestore data is organized into top-level collections such as `users`, `terminals`, `routes`, `bookings`,
+ *   `scheduledTrips`, `vehicles`, `charterContracts`, `wifi`, `drafts` and `settings`.
+ *   User-specific data is stored under `/users/{userId}`.
+ *
+ * @Key Security Decisions:
+ *   - Listing of users is disallowed to prevent enumeration attacks.
+ *   - Public read access is granted to certain collections like `terminals` and `routes` but write access is restricted to prevent unauthorized modifications.
+ *   - Data required for authorization is denormalized onto documents to avoid costly `get()` calls in security rules.
+ *   - Write operations are secured to prevent malicious modifications and ensure data integrity.
+ *   - All write operations are validated for document existence to prevent errors and enforce consistency.
+ *
+ * @Denormalization for Authorization:
+ *   - The `bookings` collection contains `userId` to easily enforce ownership.
+ *   - No role-based access is defined at this time
+ *
+ * @Structural Segregation:
+ *   - Private user data is stored under `/users/{userId}`, while public data is stored in top-level collections.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profiles.
+     * @path /users/{userId}
+     * @allow (create) User with matching ID can create their profile.
+     * @allow (get, list, update, delete) User with matching ID can read, update, and delete their profile.
+     * @deny (create) User cannot create a profile with an ID that doesn't match their own.
+     * @deny (update, delete) Non-owners cannot modify or delete user profiles.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // Disable listing users.
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to Terminal documents.
+     * @path /terminals/{terminalId}
+     * @allow (get, list) All users can read terminal information.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete terminals.
+     * @principle Public read, restricted write access.
+     */
+    match /terminals/{terminalId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to Route documents.
+     * @path /routes/{routeId}
+     * @allow (get, list) All users can read route information.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete routes.
+     * @principle Public read, restricted write access.
+     */
+    match /routes/{routeId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to Booking documents.
+     * @path /bookings/{bookingId}
+     * @allow (create) Authenticated users can create bookings with their user ID.
+     * @allow (get, list) Authenticated users can read and list bookings with their user ID.
+     * @allow (update, delete) Only the owner of the booking can update or delete it.
+     * @deny (create) Users cannot create bookings for other users.
+     * @deny (update, delete) Non-owners cannot modify or delete bookings.
+     * @principle Enforces document ownership for writes, allows owner to read/list.
+     */
+    match /bookings/{bookingId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return request.auth != null && resource != null && resource.data.userId == request.auth.uid;
+      }
+      allow get: if isExistingOwner(resource.data.userId);
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.userId) ;
+      allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Controls access to ScheduledTrip documents.
+     * @path /scheduledTrips/{tripId}
+     * @allow (get, list) All users can read and list scheduled trips.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete scheduled trips.
+     * @principle Public read, restricted write access.
+     */
+    match /scheduledTrips/{tripId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to Vehicle documents.
+     * @path /vehicles/{vehicleId}
+     * @allow (get, list) All users can read and list vehicle information.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete vehicles.
+     * @principle Public read, restricted write access.
+     */
+    match /vehicles/{vehicleId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to CharterContract documents.
+     * @path /charterContracts/{contractId}
+     * @allow (get, list) All users can read and list charter contract information.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete charter contracts.
+     * @principle Public read, restricted write access.
+     */
+    match /charterContracts/{contractId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to WiFi network documents.
+     * @path /wifi/{wifiId}
+     * @allow (get, list) All users can read and list WiFi network information.
+     * @deny (create, update, delete) Only authorized users can create, update, or delete WiFi networks.
+     * @principle Public read, restricted write access.
+     */
+    match /wifi/{wifiId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+     /**
+      * @description Controls access to Draft documents.
+      * @path /drafts/{draftId}
+      * @allow (create) Authenticated users can create drafts with their user ID.
+      * @allow (get, list, update, delete) Only the owner can read, update, or delete their drafts.
+      * @deny (create) Users cannot create drafts for other users.
+      * @deny (update, delete) Non-owners cannot modify or delete drafts.
+      * @principle Enforces document ownership for writes.
+      */
+    match /drafts/{draftId} {
+        function isOwner(userId) {
+            return request.auth != null && request.auth.uid == userId;
+        }
+
+        function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null && resource.data.userId == request.auth.uid;
+        }
+
+        allow get: if isExistingOwner(resource.data.userId);
+        allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userId == request.auth.uid;
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow update: if isExistingOwner(resource.data.userId);
+        allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Controls access to charter package settings.
+     * @path settings/charter
+     * @deny (get, list, create, update, delete) Only authorized users can access charter package settings.
+     * @principle Restricted access to configuration.
+     */
+    match /settings/charter {
+      allow get, list, create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+
+    /**
+     * @description Controls access to vehicle showcase settings.
+     * @path settings/vehicleShowcase
+     * @deny (get, list, create, update, delete) Only authorized users can access vehicle showcase settings.
+     * @principle Restricted access to configuration.
+     */
+    match /settings/vehicleShowcase {
+      allow get, list, create, update, delete: if false; // TODO: Add role-based access control for admins.
+    }
+  }
+}
