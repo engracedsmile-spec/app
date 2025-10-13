@@ -33,7 +33,7 @@ import { Users } from "lucide-react";
 const formSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
     email: z.string().email("Please enter a valid email address."),
-    phoneNumber: z.string().min(10, "Please enter a valid phone number."),
+    phoneNumber: z.string().min(8, "Please enter a valid phone number.").optional().or(z.literal('')),
     password: z.string().min(8, "Password must be at least 8 characters.").optional().or(z.literal('')),
     confirmPassword: z.string().optional(),
     otp: z.string().optional(),

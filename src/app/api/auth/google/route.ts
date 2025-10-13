@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             const existingUserDocRef = adminDb.collection('users').doc(authUser.uid);
             userDoc = await existingUserDocRef.get();
 
-            if (userDoc.exists()) {
+            if (userDoc.exists) {
                  // User exists, return their profile
                  appUser = { id: userDoc.id, ...userDoc.data() } as User;
                  return NextResponse.json({ success: true, user: appUser });

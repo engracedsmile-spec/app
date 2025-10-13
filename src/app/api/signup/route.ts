@@ -18,12 +18,19 @@ export async function POST(request: Request) {
 
     const opsSettings = await getOperationsSettings();
 
-    const userRecord = await adminAuth.createUser({
+    // Only include phoneNumber if it's provided and in E.164 format
+    const createUserData: any = {
       email,
       password,
       displayName: name,
-      phoneNumber: phone,
-    });
+    };
+    
+    // Only add phone if it's provided and starts with '+'
+    if (phone && phone.startsWith('+')) {
+      createUserData.phoneNumber = phone;
+    }
+
+    const userRecord = await adminAuth.createUser(createUserData);
     
     const ownReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const bookingRef = adminDb.collection("bookings").doc();
 
     const charterSettingsDoc = await adminDb.doc('settings/charter').get();
-    if(!charterSettingsDoc.exists()) throw new Error("Charter settings not found.");
+    if(!charterSettingsDoc.exists) throw new Error("Charter settings not found.");
     const packages = charterSettingsDoc.data()?.packages as CharterPackage[];
     const pkg = packages.find(p => p.id === formData.charterPackageId);
     if(!pkg) throw new Error("Selected charter package not found.");

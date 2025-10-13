@@ -29,6 +29,13 @@ export const metadata: Metadata = {
   title: "Engraced Smiles",
   description: "Reliable passenger and courier services.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
+      { url: "/icon.png", sizes: "284x284", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -50,7 +57,9 @@ export default function RootLayout({
          <meta name="msapplication-TileColor" content="#a67c00" />
          <meta name="msapplication-tap-highlight" content="no" />
          <meta name="theme-color" content="#1A1A1A" />
-         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+         <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="32x32" />
+         <link rel="icon" href="/icon.png" type="image/png" sizes="284x284" />
+         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
          <link rel="manifest" href="/manifest.json" />
        </head>
        <body className="font-body antialiased" suppressHydrationWarning>
