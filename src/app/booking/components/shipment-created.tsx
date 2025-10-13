@@ -7,10 +7,12 @@ import { CheckCircle2, Download, Award, Wallet, Bell, ArrowRight, Wifi, Copy } f
 import { useRouter } from "next/navigation";
 import type { CreatedBooking } from "../booking-flow";
 import Link from "next/link";
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Ticket } from './ticket';
 import { toast } from "sonner";
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
 
 const Benefit = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
@@ -27,12 +29,54 @@ const Benefit = ({ icon: Icon, title, description }: { icon: React.ElementType, 
 
 export const ShipmentCreated = ({ booking, onFinish, isGuest = true }: { booking: CreatedBooking | null, onFinish: () => void, isGuest?: boolean }) => {
   const router = useRouter();
-  const ticketRef = useRef(null);
+  const ticketRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handlePrint = useReactToPrint({
     content: () => ticketRef.current,
-    documentTitle: `Ticket-${booking?.id}`,
+    documentTitle: `Ticket-${booking?.code}`,
+    onPrintError: (error) => {
+      console.error('Print error:', error);
+      toast.error("Print Failed", { description: "Could not download ticket. Please try again." });
+    },
   });
+
+  const handleDownloadPDF = async () => {
+    if (!ticketRef.current || !booking) return;
+    
+    setIsDownloading(true);
+    try {
+      // Convert the ticket to an image
+      const dataUrl = await toPng(ticketRef.current, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [400, 600],
+      });
+
+      // Add image to PDF
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // Download PDF
+      pdf.save(`Ticket-${booking.code.slice(0, 10)}.pdf`);
+      toast.success("Downloaded!", { description: "Your ticket has been downloaded as PDF." });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error("Download Failed", { description: "Could not download ticket. Please try the print option instead." });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   if (!booking) {
     return (
@@ -111,9 +155,19 @@ export const ShipmentCreated = ({ booking, onFinish, isGuest = true }: { booking
                 </Card>
             )}
             
-            <Button onClick={handlePrint} className="w-full h-14 text-lg font-bold">
-                <Download className="mr-3 h-6 w-6"/>
-                Download Your Ticket
+            <Button 
+                onClick={handleDownloadPDF} 
+                className="w-full h-14 text-lg font-bold"
+                disabled={isDownloading}
+            >
+                {isDownloading ? (
+                    <>Preparing Download...</>
+                ) : (
+                    <>
+                        <Download className="mr-3 h-6 w-6"/>
+                        Download Your Ticket
+                    </>
+                )}
             </Button>
             
             {isGuest && (
@@ -132,10 +186,10 @@ export const ShipmentCreated = ({ booking, onFinish, isGuest = true }: { booking
             {isGuest ? (
                 <>
                     <Button asChild className="w-full h-12 text-base font-semibold">
-                        <Link href={`/signup?tripId=${booking.id}`}>Create Account</Link>
+                        <Link href={`/signup?tripId=${booking.code}`}>Create Account</Link>
                     </Button>
                     <p className="text-sm text-center text-muted-foreground">
-                        Already have an account? <Link href={`/signin?tripId=${booking.id}`} className="font-bold text-primary hover:underline">Sign In</Link>
+                        Already have an account? <Link href={`/signin?tripId=${booking.code}`} className="font-bold text-primary hover:underline">Sign In</Link>
                     </p>
                 </>
             ) : (

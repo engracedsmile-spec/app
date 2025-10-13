@@ -19,6 +19,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Preloader } from "@/components/preloader";
 import { useReactToPrint } from 'react-to-print';
 import { Ticket } from '@/app/booking/components/ticket';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
 
 const Rating = ({ currentRating, onRatingChange }: { currentRating: number, onRatingChange: (rating: number) => void }) => {
@@ -112,12 +114,54 @@ export default function TripDetailPage() {
     const [trip, setTrip] = useState<Booking | null>(null);
     const [loading, setLoading] = useState(true);
     const [showRating, setShowRating] = useState(false);
-    const ticketRef = useRef(null);
+    const [isDownloading, setIsDownloading] = useState(false);
+    const ticketRef = useRef<HTMLDivElement>(null);
     
     const handlePrint = useReactToPrint({
         content: () => ticketRef.current,
         documentTitle: `Ticket-${trip?.id}`,
+        onPrintError: (error) => {
+            console.error('Print error:', error);
+            toast.error("Download Failed", { description: "Could not download ticket. Please try again." });
+        },
     });
+
+    const handleDownloadPDF = async () => {
+        if (!ticketRef.current || !trip) return;
+        
+        setIsDownloading(true);
+        try {
+            // Convert the ticket to an image
+            const dataUrl = await toPng(ticketRef.current, {
+                quality: 1.0,
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+            });
+
+            // Create PDF
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'px',
+                format: [400, 600],
+            });
+
+            // Add image to PDF
+            const imgProps = pdf.getImageProperties(dataUrl);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            
+            // Download PDF
+            pdf.save(`Ticket-${trip.id.slice(0, 10)}.pdf`);
+            toast.success("Downloaded!", { description: "Your ticket has been downloaded as PDF." });
+        } catch (error) {
+            console.error('Download error:', error);
+            toast.error("Download Failed", { description: "Could not download ticket. Please try again." });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
 
     useEffect(() => {
@@ -174,7 +218,14 @@ export default function TripDetailPage() {
                     </Button>
                     <h1 className="text-xl font-bold">Your Trip</h1>
                 </div>
-                 <Button onClick={handlePrint} variant="outline" size="sm">Download Ticket</Button>
+                <Button 
+                    onClick={handleDownloadPDF} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isDownloading}
+                >
+                    {isDownloading ? "Downloading..." : "Download Ticket"}
+                </Button>
             </header>
 
             <main className="flex-1 p-4 md:p-6 space-y-6">
