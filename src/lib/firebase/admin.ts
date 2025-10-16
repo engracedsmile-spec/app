@@ -23,17 +23,51 @@ function initializeFirebaseAdmin() {
   }
 
   const serviceAccountKey = process.env.FIREBASE_PRIVATE_KEY;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     
-  if (!serviceAccountKey || !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL) {
-      console.error("CRITICAL ERROR: Firebase Admin credentials are not fully set in environment variables. Admin features will fail.");
+  // Enhanced error logging for Vercel debugging
+  if (!serviceAccountKey || !projectId || !clientEmail) {
+      console.error("CRITICAL ERROR: Firebase Admin credentials are not fully set in environment variables.");
+      console.error("Missing credentials:", {
+        hasPrivateKey: !!serviceAccountKey,
+        hasProjectId: !!projectId,
+        hasClientEmail: !!clientEmail,
+        privateKeyLength: serviceAccountKey?.length || 0,
+        environment: process.env.VERCEL ? 'Vercel' : 'Local'
+      });
       return;
   }
 
+  console.log("Initializing Firebase Admin SDK...", {
+    projectId,
+    clientEmail,
+    privateKeyLength: serviceAccountKey.length,
+    environment: process.env.VERCEL ? 'Vercel' : 'Local'
+  });
+
+  // Process the private key - handle both formats
+  let processedKey = serviceAccountKey;
+  
+  // If the key starts with quotes, remove them
+  if (processedKey.startsWith('"') && processedKey.endsWith('"')) {
+    processedKey = processedKey.slice(1, -1);
+  }
+  
+  // Replace escaped newlines with actual newlines
+  processedKey = processedKey.replace(/\\n/g, '\n');
+
+  console.log("Private key processed:", {
+    originalLength: serviceAccountKey.length,
+    processedLength: processedKey.length,
+    startsWithBegin: processedKey.startsWith('-----BEGIN'),
+    endsWithEnd: processedKey.endsWith('-----')
+  });
+
   const serviceAccount: ServiceAccount = {
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // Replace escaped newlines for Vercel/similar environments
-      privateKey: serviceAccountKey.replace(/\\n/g, '\n'),
+      projectId,
+      clientEmail,
+      privateKey: processedKey,
   };
 
   try {
