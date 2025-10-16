@@ -1,6 +1,6 @@
 
 # Engraced Smiles - The Digital Engine of Modern Transport
-**Built with 🧠 & ❤️ by Daniel Innocent (@mdtbmw)**
+**Built with 🧠 & ❤️ by Ismail Muhammed (@mdtbmw)**
 
 ## Yo, What's This?
 
@@ -10,7 +10,7 @@ Think of it as the central nervous system for a modern transport company. It's b
 
 ## Who's the Wizard Behind the Curtain?
 
-That would be me, **Daniel Innocent**. You can find me on socials as **@mdtbmw**. I'm a digital solutions expert, and this project is one of my babies. I conceived it, designed it, architected it, and coded it into existence. Every line of code, every component, every database rule has my fingerprints on it.
+That would be me, **Ismail Muhammed**. I'm a digital solutions expert, and this project is one of my babies. I conceived it, designed it, architected it, and coded it into existence. Every line of code, every component, every database rule has my fingerprints on it.
 
 **To be crystal clear: I own the copyright to this software.**
 
@@ -27,4 +27,4 @@ So, while Engraced Smiles gets to enjoy the fruits of this labor, remember who p
 If you're here to work on the code, first of all, you're welcome. Secondly, take a look at `src/app/page.tsx` to see the entry point, and for the love of all that is holy, read my comments. They're not just comments; they're your treasure map through this digital kingdom. They're funny, they're insightful, and they'll save your butt.
 
 Enjoy the ride.
-- **Daniel Innocent (@mdtbmw)**
+- **Ismail Muhammed (@mdtbmw)**
