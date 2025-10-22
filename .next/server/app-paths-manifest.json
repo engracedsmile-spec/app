@@ -1,0 +1,15 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/booking/page": "app/booking/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/car-booking/page": "app/car-booking/page.js",
+  "/logistics/page": "app/logistics/page.js",
+  "/page": "app/page.js",
+  "/flight-booking/page": "app/flight-booking/page.js",
+  "/booking/success/page": "app/booking/success/page.js",
+  "/booking/checkout/page": "app/booking/checkout/page.js",
+  "/services/page": "app/services/page.js",
+  "/trips/page": "app/trips/page.js",
+  "/about/page": "app/about/page.js",
+  "/admin/page": "app/admin/page.js"
+}

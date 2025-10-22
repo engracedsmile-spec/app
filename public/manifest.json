@@ -1,0 +1,27 @@
+{
+  "name": "Engraced Smile Logistics",
+  "short_name": "Engraced Logistics",
+  "description": "Nigeria's leading transportation company offering inter-state travel, luxury car rentals, and flight bookings",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#79631b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "transportation", "logistics"],
+  "lang": "en",
+  "dir": "ltr"
+}
