@@ -1,0 +1,50 @@
+{
+  "name": "Engraced Smile",
+  "short_name": "ES",
+  "start_url": ".",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#e8dcbb",
+  "theme_color": "#A87E00",
+  "description": "Travel with a Smile",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book a Trip",
+      "url": "/book-trip?bookingType=seat_booking",
+      "description": "",
+      "icons": [
+        {
+          "src": "/shortcut-96.png",
+          "sizes": "96x96"
+        },
+        {
+          "src": "/shortcut-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Charter a Vehicle",
+      "url": "/book-trip?bookingType=charter",
+      "description": "",
+      "icons": [
+        {
+          "src": "/shortcut-96.png",
+          "sizes": "96x96"
+        },
+        {
+          "src": "/shortcut-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

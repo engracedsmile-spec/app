@@ -1,0 +1,275 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user of the application, who can be a customer, driver, or admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique identifier for the user (Firebase UID)." },
+        "userId": { "type": "string", "description": "The unique identifier for the user (Firebase UID), used for security rules." },
+        "name": { "type": "string", "description": "The user's full name." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "phone": { "type": "string", "description": "The user's phone number." },
+        "profilePictureUrl": { "type": "string", "format": "uri", "description": "URL of the user's profile picture." },
+        "userType": { "type": "string", "enum": ["customer", "driver", "admin"], "description": "The primary type of the user." },
+        "vehicle": { "type": "string", "description": "The vehicle type for a driver." },
+        "licensePlate": { "type": "string", "description": "The license plate of the driver's vehicle." },
+        "terminalId": { "type": "string", "description": "The ID of the driver's home terminal." },
+        "role": { "type": "string", "enum": ["Manager", "Support", "Finance", "Marketing"], "description": "The specific role for an admin user." },
+        "status": { "type": "string", "enum": ["Active", "Suspended", "Inactive", "Online", "Offline"], "description": "The current status of the user account." },
+        "dateJoined": { "type": "string", "format": "date", "description": "The date the user joined." },
+        "walletBalance": { "type": "number", "description": "The user's current wallet balance (for customers)." },
+        "walletPin": { "type": "string", "description": "The hashed 4-digit PIN for wallet transactions." },
+        "referralCode": { "type": "string", "description": "The user's unique referral code." },
+        "referredBy": { "type": "string", "description": "The referral code of the user who referred this user." },
+        "referralCount": { "type": "number", "description": "The number of users referred by this user." },
+        "fcmToken": { "type": "string", "description": "The Firebase Cloud Messaging token for push notifications." }
+      },
+      "required": ["id", "userId", "name", "email", "userType", "status", "dateJoined"]
+    },
+    "WiFi": {
+        "title": "WiFi Network",
+        "description": "Represents a configurable WiFi network for vehicles.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string", "description": "The SSID of the WiFi network." },
+            "password": { "type": "string", "description": "The password for the WiFi network." }
+        },
+        "required": ["id", "name", "password"]
+    },
+    "Terminal": {
+        "title": "Terminal",
+        "description": "Represents a physical terminal or pickup location.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" },
+            "address": { "type": "string" },
+            "coordinates": { "type": "object", "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } } },
+            "heroImageUrl": { "type": "string", "format": "uri" },
+            "galleryImageUrls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+            "facilities": { "type": "array", "items": { "type": "string" } },
+            "status": { "type": "string", "enum": ["active", "inactive"] }
+        },
+        "required": ["id", "name", "city", "state", "address", "status"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Represents a vehicle in the fleet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "number" },
+        "licensePlate": { "type": "string" },
+        "vin": { "type": ["string", "null"] },
+        "status": { "type": "string", "enum": ["Active", "Maintenance", "Inactive"] },
+        "primaryDriverId": { "type": ["string", "null"] },
+        "wifiId": { "type": ["string", "null"] },
+        "wifiPassword": { "type": ["string", "null"] }
+      },
+      "required": ["id", "make", "model", "year", "licensePlate", "status"]
+    },
+    "Route": {
+      "title": "Route",
+      "description": "A defined travel route between two Terminals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "originTerminalId": { "type": "string" },
+        "destinationTerminalId": { "type": "string" },
+        "baseFare": { "type": "number" },
+        "estimatedDuration": { "type": "string" },
+        "reverseRouteId": { "type": "string" }
+      },
+      "required": ["id", "name", "originTerminalId", "destinationTerminalId", "baseFare"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Represents a booking, which can be a passenger trip or a charter hire.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "The ID of the user who created the booking." },
+        "type": { "type": "string", "enum": ["passenger", "charter"], "description": "The type of booking." },
+        "bookingType": { "type": "string", "enum": ["seat_booking", "charter"], "description": "Specific type of booking." },
+        "status": { "type": "string", "enum": ["Pending", "Quoted", "Confirmed", "On Progress", "Completed", "Cancelled", "Closed", "Delayed", "Boarding", "In Transit"], "description": "The current lifecycle state of the booking." },
+        "price": { "type": "number", "description": "Final price of the booking." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "travelDate": { "type": "string", "format": "date-time", "description": "The start date/time for the trip or charter." },
+        "passengerName": { "type": "string", "description": "Primary contact name for the booking." },
+        "passengerPhone": { "type": "string", "description": "Primary contact phone for the booking." },
+        "pickupAddress": { "type": "string" },
+        "destinationAddress": { "type": "string" },
+        "title": { "type": "string" },
+        "scheduledTripId": { "type": "string", "description": "(Passenger) ID of the scheduled trip this booking is for." },
+        "itemDescription": { "type": "string", "description": "(Passenger) Details like seat numbers." },
+        "seats": { "type": "array", "items": { "type": "number" } },
+        "wifiPassword": { "type": "string" },
+        "charterContractId": { "$ref": "#/entities/CharterContract", "description": "(Charter) ID of the associated charter contract." },
+        "charterPackageId": { "type": "string" },
+        "charterPackageName": { "type": "string" },
+        "charterDays": { "type": "number" },
+        "rating": { "type": "object", "properties": { "stars": { "type": "number" }, "feedback": { "type": "string" } } },
+        "discount": { "type": "object", "properties": { "code": { "type": "string" }, "amount": { "type": "number" } } }
+      },
+      "required": ["id", "userId", "type", "status", "createdAt", "price"]
+    },
+    "ScheduledTrip": {
+      "title": "Scheduled Trip",
+      "description": "Represents a specific vehicle departure for a given route, date, and time.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "routeId": { "type": "string" },
+        "routeName": { "type": "string" },
+        "driverId": { "type": "string" },
+        "driverName": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "departureDate": { "type": "string", "format": "date"},
+        "departurePeriod": { "type": "string", "enum": ["Morning", "Evening"]},
+        "status": { "type": "string", "enum": ["Provisional", "Scheduled", "Boarding", "In Transit", "Completed", "Cancelled"] },
+        "bookedSeats": { "type": "array", "items": { "type": "number" } },
+        "seatHolds": { "type": "object" },
+        "fare": { "type": "number" }
+      },
+      "required": ["routeId", "driverId", "vehicleId", "departureDate", "departurePeriod", "status", "bookedSeats"]
+    },
+    "CharterPackage": {
+      "title": "Charter Package",
+      "description": "An admin-defined template for charter services.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "basePrice": { "type": "number" },
+        "dailyRate": { "type": "number" },
+        "features": { "type": "object", "properties": {
+            "securityEscort": { "type": "boolean" },
+            "refreshments": { "type": "boolean" },
+            "customDecorations": { "type": "boolean" }
+        }},
+        "status": { "type": "string", "enum": ["active", "inactive"]}
+      },
+      "required": ["id", "name", "basePrice", "dailyRate", "status"]
+    },
+    "CharterContract": {
+        "title": "Charter Contract",
+        "description": "The finalized record of a charter booking after payment.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "bookingId": { "type": "string" },
+            "charterPackageId": { "type": "string" },
+            "quoteId": { "type": "string" },
+            "durationDays": { "type": "number" },
+            "priceBreakdown": { "type": "object", "properties": {
+                "base": { "type": "number" },
+                "daily": { "type": "number" },
+                "distance": { "type": "number" },
+                "driverAllowance": { "type": "number" },
+                "addOns": { "type": "number" }
+            }},
+            "depositPaid": { "type": "number" },
+            "totalPaid": { "type": "number" },
+            "cancellationPolicy": { "type": "string" }
+        },
+        "required": ["id", "bookingId"]
+    },
+    "Draft": {
+        "title": "Draft",
+        "description": "Represents a booking in progress.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "userId": { "type": "string" },
+            "type": { "type": "string", "enum": ["passenger", "charter"] },
+            "lastSaved": { "type": "string", "format": "date-time" },
+            "step": { "type": "number" },
+            "formData": { "type": "object" }
+        },
+        "required": ["id", "userId", "type", "lastSaved", "step", "formData"]
+    }
+  },
+  "auth": {
+    "providers": ["password", "phone", "google.com"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profile information."
+    },
+     "/terminals/{terminalId}": {
+      "schema": { "$ref": "#/entities/Terminal" },
+      "description": "Stores physical terminal locations."
+    },
+    "/routes/{routeId}": {
+      "schema": { "$ref": "#/entities/Route" },
+      "description": "Stores defined travel routes between two terminals."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Stores all passenger trips and charter bookings."
+    },
+    "/scheduledTrips/{tripId}": {
+        "schema": { "$ref": "#/entities/ScheduledTrip" },
+        "description": "Stores scheduled vehicle departures for specific routes."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "Stores information about vehicles in the fleet."
+    },
+    "/charterContracts/{contractId}": {
+        "schema": { "$ref": "#/entities/CharterContract" },
+        "description": "Stores detailed contracts for finalized charter hires."
+    },
+     "/wifi/{wifiId}": {
+        "schema": { "$ref": "#/entities/WiFi" },
+        "description": "Stores WiFi network credentials."
+    },
+    "/drafts/{draftId}": {
+      "schema": { "$ref": "#/entities/Draft" },
+      "description": "Stores saved booking drafts."
+    },
+    "settings/charter": {
+        "schema": {
+            "type": "object",
+            "properties": {
+                "packages": {
+                    "type": "array",
+                    "items": { "$ref": "#/entities/CharterPackage" }
+                }
+            }
+        },
+        "description": "Configuration document for all available charter packages."
+    },
+    "settings/vehicleShowcase": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "src": { "type": "string", "format": "uri" },
+                "alt": { "type": "string" },
+                "hint": { "type": "string" }
+              },
+              "required": ["id", "src", "alt"]
+            }
+          }
+        }
+      },
+      "description": "Stores a global list of images to showcase vehicles to customers."
+    }
+  }
+}

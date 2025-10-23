@@ -1,0 +1,20 @@
+
+{
+    "sienna": [
+        {
+            "src": "https://picsum.photos/seed/sienna1/800/600",
+            "alt": "Toyota Sienna side view",
+            "hint": "minivan side"
+        },
+        {
+            "src": "https://picsum.photos/seed/sienna2/800/600",
+            "alt": "Toyota Sienna interior view",
+            "hint": "minivan interior"
+        },
+        {
+            "src": "https://picsum.photos/seed/sienna3/800/600",
+            "alt": "Toyota Sienna front view",
+            "hint": "minivan front"
+        }
+    ]
+}
