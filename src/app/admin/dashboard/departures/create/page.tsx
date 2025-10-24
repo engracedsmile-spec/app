@@ -193,7 +193,7 @@ export default function CreateDeparturePage() {
             </SubHeader>
             <main className="flex-1 p-4 md:p-6 overflow-y-auto">
                 <Card className="max-w-2xl mx-auto">
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 md:p-6">
                         <Form {...form}>
                             <form id="create-departure-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                             <FormField control={form.control} name="routeId" render={({ field }) => (

@@ -102,7 +102,7 @@ export default function DeparturesPage() {
                  </div>
                  <div className="flex justify-between items-center text-sm pt-2 border-t">
                      <p className="flex items-center gap-1.5"><UserIcon className="h-4 w-4 text-muted-foreground"/> {dep.driverName}</p>
-                     <p className="flex items-center gap-1.5"><Bus className="h-4 w-4 text-muted-foreground"/> {dep.bookedSeats.length} / {vehicles.find(v => v.id === dep.vehicleId)?.seats || 'N/A'}</p>
+                     <p className="flex items-center gap-1.5"><Bus className="h-4 w-4 text-muted-foreground"/> {dep.bookedSeats.length} / {vehicles.find(v => v.id === dep.vehicleId)?.seats || 7}</p>
                      <p className="font-semibold">{dep.status}</p>
                  </div>
              </CardContent>
@@ -175,7 +175,7 @@ export default function DeparturesPage() {
                                                   <TableCell>{dep.driverName}</TableCell>
                                                   <TableCell>{new Date(dep.departureDate).toLocaleDateString()} - {dep.departurePeriod}</TableCell>
                                                   <TableCell>{dep.status}</TableCell>
-                                                  <TableCell>{dep.bookedSeats.length} / {vehicles.find(v => v.id === dep.vehicleId)?.seats || 'N/A'}</TableCell>
+                                                  <TableCell>{dep.bookedSeats.length} / {vehicles.find(v => v.id === dep.vehicleId)?.seats || 7}</TableCell>
                                                   <TableCell className="text-right">
                                                        <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>

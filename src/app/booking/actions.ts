@@ -44,7 +44,7 @@ export async function findAvailableDepartures(routeId: string, dateString: strin
         const q = departuresRef
             .where("routeId", "==", routeId)
             .where('departureDate', '==', dateString)
-            .where('status', 'in', ['Scheduled', 'Boarding']);
+            .where('status', 'in', ['Scheduled', 'Boarding', 'Provisional']);
 
         const querySnapshot = await q.get();
         

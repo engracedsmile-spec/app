@@ -28,13 +28,13 @@ export const SubHeader = ({ title, children, className }: SubHeaderProps) => {
 
     return (
         <header className={cn("flex items-center justify-between p-4 sticky top-0 bg-background z-10 border-b", className)}>
-            <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2 flex-shrink-0">
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
-                 <h1 className="text-lg md:text-xl font-bold text-left truncate">{title}</h1>
+                 <h1 className="text-lg md:text-xl font-bold text-left truncate min-w-0">{title}</h1>
             </div>
-            {children && <div>{children}</div>}
+            {children && <div className="flex-shrink-0 ml-2">{children}</div>}
         </header>
     );
 };

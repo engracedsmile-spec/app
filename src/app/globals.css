@@ -115,4 +115,49 @@
     print-color-adjust: exact !important;
   }
 }
+
+/* Mobile responsiveness improvements */
+@media (max-width: 640px) {
+  /* Ensure buttons are touch-friendly */
+  .btn-mobile {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve form spacing on mobile */
+  .form-mobile {
+    padding: 1rem;
+  }
+  
+  /* Better mobile table handling */
+  .table-mobile {
+    font-size: 0.875rem;
+  }
+  
+  /* Mobile-friendly cards */
+  .card-mobile {
+    margin: 0.5rem;
+    border-radius: 0.75rem;
+  }
+  
+  /* Ensure text is readable on mobile */
+  .text-mobile {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  
+  /* Mobile header improvements */
+  .header-mobile {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Mobile footer improvements */
+  .footer-mobile {
+    padding: 1rem;
+    position: sticky;
+    bottom: 0;
+    background: hsl(var(--background));
+    border-top: 1px solid hsl(var(--border));
+  }
+}
     

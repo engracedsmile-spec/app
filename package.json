@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fix-vehicles": "node scripts/fix-vehicle-seats.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -67,7 +68,9 @@
     "use-debounce": "^10.0.1",
     "uuid": "^9.0.1",
     "vaul": "^0.9.1",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "html-to-image": "^1.11.11",
+    "jspdf": "^2.5.2"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",

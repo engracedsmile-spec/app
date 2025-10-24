@@ -50,6 +50,7 @@ export type Vehicle = {
     year: number;
     licensePlate: string;
     vin?: string | null;
+    seats: number;
     status: 'Active' | 'Maintenance' | 'Inactive';
     primaryDriverId?: string | null;
     wifiId?: string | null;

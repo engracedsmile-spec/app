@@ -9,6 +9,8 @@ export async function POST(request: Request) {
     const { adminDb } = getFirebaseAdmin();
     const { reference, bookingId } = await request.json();
     
+    console.log('Payment verification request:', { reference, bookingId });
+    
     if (!bookingId) {
         return new Response(JSON.stringify({ message: "Booking ID is required." }), { status: 400 });
     }
@@ -30,6 +32,8 @@ export async function POST(request: Request) {
                 console.log(`Booking ${bookingId} already processed with status: ${bookingData.status}`);
                 return;
             }
+            
+            console.log(`Processing payment verification for booking ${bookingId}`);
 
             let tripDoc: FirebaseFirestore.DocumentSnapshot | null = null;
             let vehicleDoc: FirebaseFirestore.DocumentSnapshot | null = null;
