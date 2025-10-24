@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         return docRef.get();
     }
 
-    const [bookingsSnap, usersSnap, fundRequestsSnap, scheduledTripsSnap, expensesSnap, driverApplicationsSnap, pricingSettingsDoc, vehiclesSnap] = await Promise.all([
+    const [bookingsSnap, usersSnap, fundRequestsSnap, scheduledTripsSnap, expensesSnap, driverApplicationsSnap, pricingSettingsDoc, vehiclesSnap, paymentsSnap, transfersSnap] = await Promise.all([
       fetchData('manageShipments', adminDb.collection('bookings').orderBy('createdAt', 'desc')),
       fetchData('manageUsers', adminDb.collection('users')),
       fetchData('managePayouts', adminDb.collection('fundRequests').where('status', '==', 'pending')),
@@ -46,6 +46,8 @@ export async function GET(request: Request) {
       fetchData('manageDrivers', adminDb.collection('driverApplications')),
       fetchDoc('manageSettings', adminDb.doc('settings/pricing')),
       fetchData('manageSettings', adminDb.collection('vehicles')),
+      fetchData('managePayouts', adminDb.collection('payments').orderBy('date', 'desc')),
+      fetchData('managePayouts', adminDb.collection('transfers').orderBy('date', 'desc')),
     ]);
     
     const bookings: Booking[] = bookingsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
@@ -55,10 +57,12 @@ export async function GET(request: Request) {
     const expenses: Expense[] = expensesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
     const driverApplications: DriverApplication[] = driverApplicationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as DriverApplication));
     const vehicles: Vehicle[] = vehiclesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
+    const payments: any[] = paymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const transfers: any[] = transfersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     const pricingSettings = pricingSettingsDoc?.data() as PricingSettings || null;
 
-    return NextResponse.json({ bookings, users, fundRequests, scheduledTrips, expenses, pricingSettings, driverApplications, vehicles });
+    return NextResponse.json({ bookings, users, fundRequests, scheduledTrips, expenses, pricingSettings, driverApplications, vehicles, payments, transfers });
   } catch (error: any) {
     console.error("API Error in /api/admin/data:", error);
     if (error.message.includes("Firebase Admin SDK is not initialized")) {

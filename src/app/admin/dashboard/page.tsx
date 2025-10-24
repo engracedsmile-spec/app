@@ -3,7 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Users, DollarSign, Activity, CheckCircle, Clock, Truck, Car, Package, ArrowRight, Loader2, BarChart, LineChart } from 'lucide-react';
+import { Users, DollarSign, Activity, CheckCircle, Clock, Truck, Car, Package, ArrowRight, Loader2, BarChart, LineChart, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -131,43 +131,104 @@ const OperationsView = ({ bookings, loading }: { bookings: Booking[], loading: b
     );
 };
 
-const FinancialsView = ({ bookings, expenses, loading }: { bookings: Booking[], expenses: Expense[], loading: boolean }) => {
+const FinancialsView = ({ bookings, expenses, payments, transfers, loading, isSyncing, handleSyncPaystack }: { bookings: Booking[], expenses: Expense[], payments: any[], transfers: any[], loading: boolean, isSyncing: boolean, handleSyncPaystack: () => void }) => {
     const financialStats = useMemo(() => {
         const totalRevenue = bookings.filter(s => s.status === 'Completed' || s.status === 'Delivered').reduce((acc, s) => acc + (s.price || 0), 0);
         const totalExpenses = expenses.filter(e => e.status === 'approved').reduce((acc, e) => acc + e.amount, 0);
         const pendingExpenses = expenses.filter(e => e.status === 'pending').reduce((acc, e) => acc + e.amount, 0);
-        return { totalRevenue, totalExpenses, pendingExpenses };
-    }, [bookings, expenses]);
+        
+        // Add Paystack payment data
+        const totalPaystackPayments = payments.filter(p => p.status === 'success').reduce((acc, p) => acc + (p.amount || 0), 0);
+        const totalTransfers = transfers.filter(t => t.status === 'success').reduce((acc, t) => acc + (t.amount || 0), 0);
+        
+        return { totalRevenue, totalExpenses, pendingExpenses, totalPaystackPayments, totalTransfers };
+    }, [bookings, expenses, payments, transfers]);
 
     return (
          <div className="space-y-6">
-             <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard title="Total Revenue" value={new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(financialStats.totalRevenue)} icon={DollarSign} loading={loading} />
+                <StatCard title="Paystack Payments" value={new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(financialStats.totalPaystackPayments)} icon={DollarSign} loading={loading} />
                 <StatCard title="Total Expenses" value={new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(financialStats.totalExpenses)} icon={CheckCircle} loading={loading} />
                 <StatCard title="Pending Expenses" value={new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(financialStats.pendingExpenses)} icon={Clock} href="/admin/dashboard/payouts" loading={loading} />
             </div>
-             <Card>
-                <CardHeader><CardTitle>Recent Expenses</CardTitle></CardHeader>
-                <CardContent>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Type</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {loading ? Array.from({length: 3}).map((_, i) => (
-                                    <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-12 w-full"/></TableCell></TableRow>
-                                )) : expenses.length > 0 ? expenses.slice(0,10).map((exp: Expense) => (
-                                    <TableRow key={exp.id}>
-                                        <TableCell>{exp.driverName}</TableCell>
-                                        <TableCell>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(exp.amount)}</TableCell>
-                                        <TableCell>{exp.type}</TableCell>
-                                        <TableCell>{(exp.date as any)?.toDate().toLocaleDateString()}</TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow><TableCell colSpan={4} className="text-center h-24">No expenses logged yet.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                </CardContent>
-             </Card>
+             <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+                 <Card>
+                    <CardHeader><CardTitle>Recent Expenses</CardTitle></CardHeader>
+                    <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead>Amount</TableHead><TableHead>Type</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {loading ? Array.from({length: 3}).map((_, i) => (
+                                        <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-12 w-full"/></TableCell></TableRow>
+                                    )) : expenses.length > 0 ? expenses.slice(0,5).map((exp: Expense) => (
+                                        <TableRow key={exp.id}>
+                                            <TableCell>{exp.driverName}</TableCell>
+                                            <TableCell>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(exp.amount)}</TableCell>
+                                            <TableCell>{exp.type}</TableCell>
+                                            <TableCell>{(exp.date as any)?.toDate().toLocaleDateString()}</TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow><TableCell colSpan={4} className="text-center h-24">No expenses logged yet.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                    </CardContent>
+                 </Card>
+                 
+                 <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Recent Paystack Payments</CardTitle>
+                            <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={handleSyncPaystack}
+                                disabled={isSyncing}
+                            >
+                                {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                {isSyncing ? 'Syncing...' : 'Sync Paystack'}
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                            <Table>
+                                <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    {loading ? Array.from({length: 3}).map((_, i) => (
+                                        <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-12 w-full"/></TableCell></TableRow>
+                                    )) : payments.length > 0 ? payments.slice(0,5).map((payment: any) => (
+                                        <TableRow key={payment.id}>
+                                            <TableCell>{payment.customerName || payment.customerEmail || 'Unknown'}</TableCell>
+                                            <TableCell>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(payment.amount)}</TableCell>
+                                            <TableCell>
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                    payment.status === 'success' ? 'bg-green-100 text-green-800' : 
+                                                    payment.status === 'failed' ? 'bg-red-100 text-red-800' : 
+                                                    'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                    {payment.status}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                {payment.originalDate ? 
+                                                    new Date(payment.originalDate).toLocaleDateString() :
+                                                    payment.date ? (
+                                                        payment.date instanceof Date ? 
+                                                            payment.date.toLocaleDateString() :
+                                                            (payment.date as any)?.toDate?.()?.toLocaleDateString() || 
+                                                            new Date(payment.date).toLocaleDateString()
+                                                    ) : 'N/A'}
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow><TableCell colSpan={4} className="text-center h-24">No Paystack payments yet. Click "Sync Paystack" to import existing payments.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                    </CardContent>
+                 </Card>
+             </div>
         </div>
     );
 };
@@ -247,6 +308,7 @@ export default function AdminDashboardPage() {
     const [idToken, setIdToken] = React.useState<string | undefined>();
     const [api, setApi] = React.useState<CarouselApi>()
     const [current, setCurrent] = React.useState(0)
+    const [isSyncing, setIsSyncing] = React.useState(false)
 
     useEffect(() => {
         firebaseUser?.getIdToken().then(setIdToken);
@@ -263,10 +325,47 @@ export default function AdminDashboardPage() {
         setCurrent(api.selectedScrollSnap());
         api.on("select", () => setCurrent(api.selectedScrollSnap()));
     }, [api]);
+
+    const handleSyncPaystack = async () => {
+        if (!idToken) return;
+        
+        setIsSyncing(true);
+        try {
+            // Get date range for last 30 days
+            const endDate = new Date().toISOString().split('T')[0];
+            const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            const response = await fetch('/api/admin/sync-paystack', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ startDate, endDate }),
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                toast.success("Sync Complete", { 
+                    description: `Synced ${result.syncedCount} payments, skipped ${result.skippedCount} existing payments.` 
+                });
+                // Refresh the data
+                window.location.reload();
+            } else {
+                toast.error("Sync Failed", { description: result.message });
+            }
+        } catch (error) {
+            console.error('Sync error:', error);
+            toast.error("Sync Failed", { description: "An error occurred while syncing Paystack data." });
+        } finally {
+            setIsSyncing(false);
+        }
+    };
     
     const views = [
         { key: 'operations', title: 'Operations', icon: Activity, component: <OperationsView bookings={data?.bookings || []} loading={isLoading} /> },
-        { key: 'financials', title: 'Financials', icon: DollarSign, component: <FinancialsView bookings={data?.bookings || []} expenses={data?.expenses || []} loading={isLoading} /> },
+        { key: 'financials', title: 'Financials', icon: DollarSign, component: <FinancialsView bookings={data?.bookings || []} expenses={data?.expenses || []} payments={data?.payments || []} transfers={data?.transfers || []} loading={isLoading} isSyncing={isSyncing} handleSyncPaystack={handleSyncPaystack} /> },
         { key: 'analytics', title: 'Analytics', icon: BarChart, component: <AnalyticsView bookings={data?.bookings || []} users={data?.users || []} loading={isLoading} /> },
     ];
     

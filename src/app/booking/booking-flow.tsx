@@ -455,7 +455,15 @@ const BookingFlowComponent: React.FC = () => {
             config: {
                 ...paystackConfig,
                 amount: finalPrice * 100,
-                reference: String(new Date().getTime())
+                reference: String(new Date().getTime()),
+                metadata: {
+                    bookingId: newBookingId,
+                    bookingType: currentFormData.bookingType,
+                    userId: user?.id,
+                    customerName: currentFormData.passengerName,
+                    customerEmail: currentFormData.passengerEmail,
+                    description: `Payment for ${currentFormData.bookingType === 'charter' ? 'Charter' : 'Seat'} booking`
+                }
             },
             onSuccess: (ref: any) => onPaymentSuccess({...ref}, newBookingId, currentFormData.bookingType),
             onClose: onPaymentClose,
