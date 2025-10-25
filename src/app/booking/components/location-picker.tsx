@@ -26,6 +26,7 @@ export const BookingLocationPicker = ({ onNext, initialData, routes, terminals, 
     const [toTerminalId, setToTerminalId] = useState(initialData.routeId ? routes.find(r => r.id === initialData.routeId)?.destinationTerminalId || "" : "");
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialData.travelDate ? new Date(initialData.travelDate) : new Date());
     
+    
     const availableToTerminals = routes
         .filter(r => r.originTerminalId === fromTerminalId)
         .map(r => terminals.find(t => t.id === r.destinationTerminalId))

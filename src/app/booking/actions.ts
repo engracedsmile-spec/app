@@ -39,7 +39,17 @@ export async function findAvailableDepartures(routeId: string, dateString: strin
     const { adminDb } = getFirebaseAdmin();
     
     try {
+        console.log(`🔍 Searching for departures: routeId=${routeId}, date=${dateString}`);
+        
         const departuresRef = adminDb.collection("scheduledTrips");
+        
+        // First, let's see all departures for this route
+        const allRouteDepartures = await departuresRef.where("routeId", "==", routeId).get();
+        console.log(`📊 All departures for route ${routeId}: ${allRouteDepartures.size}`);
+        allRouteDepartures.forEach(doc => {
+            const data = doc.data();
+            console.log(`  - Date: "${data.departureDate}", Status: "${data.status}", Period: "${data.departurePeriod}"`);
+        });
         
         const q = departuresRef
             .where("routeId", "==", routeId)
@@ -47,8 +57,10 @@ export async function findAvailableDepartures(routeId: string, dateString: strin
             .where('status', 'in', ['Scheduled', 'Boarding', 'Provisional']);
 
         const querySnapshot = await q.get();
+        console.log(`📊 Found ${querySnapshot.size} departures for route ${routeId} on ${dateString}`);
         
         if (querySnapshot.empty) {
+            console.log(`❌ No departures found for route ${routeId} on ${dateString}`);
             return [];
         }
 
@@ -61,6 +73,7 @@ export async function findAvailableDepartures(routeId: string, dateString: strin
             const bookedSeatsCount = trip.bookedSeats?.length || 0;
             const heldSeatsCount = Object.keys(trip.seatHolds || {}).length;
             const hasSeats = (bookedSeatsCount + heldSeatsCount) < 7;
+            console.log(`  Trip ${trip.id}: Booked=${bookedSeatsCount}, Held=${heldSeatsCount}, HasSeats=${hasSeats}`);
             return hasSeats;
         }).sort((a, b) => {
             if (a.departurePeriod === 'Morning' && b.departurePeriod === 'Evening') return -1;
@@ -68,6 +81,7 @@ export async function findAvailableDepartures(routeId: string, dateString: strin
             return 0;
         });
         
+        console.log(`✅ Returning ${availableDepartures.length} available departures`);
         return availableDepartures;
 
     } catch (error: any) {

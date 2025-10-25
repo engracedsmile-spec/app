@@ -244,6 +244,7 @@ const BookingFlowComponent: React.FC = () => {
         setRoutes(routesAndTerminals.routes);
         setTerminals(routesAndTerminals.terminals);
         setCharterPackages(fetchedCharterPackages);
+        
 
         let initialFormData: Partial<BookingFormData> = {
             passengerName: user?.name || '',

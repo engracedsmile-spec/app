@@ -241,11 +241,13 @@ export default function RoutesPage() {
     const [routeToDelete, setRouteToDelete] = useState<Route | null>(null);
 
     const fetchData = () => {
-        const routesQuery = query(collection(firestore, 'routes'), orderBy("name"));
+        const routesQuery = query(collection(firestore, 'routes'));
         const terminalsQuery = query(collection(firestore, 'terminals'));
 
         const unsubRoutes = onSnapshot(routesQuery, (snapshot) => {
-            setRoutes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
+            const routesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route));
+            // Sort routes by name on the client side
+            setRoutes(routesData.sort((a, b) => a.name.localeCompare(b.name)));
             setLoading(false);
         });
         

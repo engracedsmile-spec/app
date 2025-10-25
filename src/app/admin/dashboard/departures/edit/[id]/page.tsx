@@ -64,13 +64,13 @@ export default function EditDeparturePage() {
                 if (docSnap.exists()) {
                     const data = { id: docSnap.id, ...docSnap.data() } as ScheduledTrip;
                     setEditingDeparture(data);
-                    form.reset({
-                        ...data,
-                        departureDate: new Date(data.departureDate),
-                    });
                 }
             }));
-            unsubscribes.push(onSnapshot(query(collection(firestore, 'routes')), (snapshot) => setRoutes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)))));
+            unsubscribes.push(onSnapshot(query(collection(firestore, 'routes')), (snapshot) => {
+                const routesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route));
+                console.log('Routes loaded:', routesData.length);
+                setRoutes(routesData);
+            }));
             unsubscribes.push(onSnapshot(query(collection(firestore, 'vehicles')), (snapshot) => setVehicles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle)))));
             unsubscribes.push(onSnapshot(query(collection(firestore, 'users'), where("userType", "==", "driver")), (snapshot) => setDrivers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)))));
             unsubscribes.push(onSnapshot(query(collection(firestore, 'scheduledTrips')), (snapshot) => setExistingDepartures(snapshot.docs.map(doc => doc.data() as ScheduledTrip))));
@@ -81,6 +81,18 @@ export default function EditDeparturePage() {
 
         return () => unsubscribes.forEach(unsub => unsub());
     }, [firestore, departureId, form]);
+
+    // Reset form when both routes and departure data are available (only once)
+    const [formInitialized, setFormInitialized] = useState(false);
+    useEffect(() => {
+        if (editingDeparture && routes.length > 0 && !formInitialized) {
+            form.reset({
+                ...editingDeparture,
+                departureDate: new Date(editingDeparture.departureDate),
+            });
+            setFormInitialized(true);
+        }
+    }, [editingDeparture, routes, form, formInitialized]);
 
     const { departureDate: selectedDate } = useWatch({ control: form.control });
 
@@ -109,13 +121,17 @@ export default function EditDeparturePage() {
         }
 
         const departureRef = doc(firestore, 'scheduledTrips', editingDeparture.id);
+        
+        // Only update the fields that have changed, preserve existing data
         const departureData = {
-            ...editingDeparture,
-            ...data,
-            departureDate: format(data.departureDate, 'yyyy-MM-dd'),
+            ...editingDeparture, // Keep all existing data
+            routeId: data.routeId,
             routeName: mainRoute.name,
+            vehicleId: data.vehicleId,
+            driverId: data.driverId,
             driverName: selectedDriver.name,
-            vehicleId: selectedVehicle.id,
+            departureDate: format(data.departureDate, 'yyyy-MM-dd'),
+            departurePeriod: data.departurePeriod,
             fare: data.fare || mainRoute.baseFare,
         };
 
@@ -149,8 +165,8 @@ export default function EditDeparturePage() {
                             <FormField control={form.control} name="routeId" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Route</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled>
-                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select a route"/></SelectTrigger></FormControl>
                                         <SelectContent>{routes.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
                                     </Select>
                                     <FormMessage/>
