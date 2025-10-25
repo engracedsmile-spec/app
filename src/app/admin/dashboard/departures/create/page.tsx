@@ -1,199 +1,264 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { CalendarIcon, RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2, Info, Car, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import type { User, ScheduledTrip, Route, Vehicle, Terminal } from "@/lib/data";
-import { format } from "date-fns";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
-import { useFirestore } from "@/firebase";
-import { doc, setDoc, collection, onSnapshot, query, orderBy, where, writeBatch } from 'firebase/firestore';
+import { format, eachDayOfInterval, isAfter, parseISO } from "date-fns";
+import { useAuth } from "@/firebase";
+import { writeBatch, collection, doc, query, where, getDocs } from 'firebase/firestore';
 import { Input } from "@/components/ui/input";
 import { v4 as uuidv4 } from 'uuid';
 import { SubHeader } from "@/components/sub-header";
-import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Preloader } from "@/components/preloader";
+import { DatePickerWithRange } from "@/components/date-range-picker";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useCollection } from "@/firebase";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+
 
 const departureFormSchema = z.object({
     routeId: z.string().min(1, "Please select a route."),
-    vehicleId: z.string().min(1, "Please select a vehicle."),
-    driverId: z.string().min(1, "A driver must be assigned to the trip."),
-    departurePeriod: z.enum(["Morning", "Evening"]),
-    departureDate: z.date({ required_error: "A departure date is required." }),
+    dateRange: z.object({
+        from: z.date({ required_error: "A start date is required." }),
+        to: z.date().optional(),
+    }).refine(data => {
+        if (data.from && data.to) {
+            return !isAfter(data.from, data.to);
+        }
+        return true;
+    }, {
+        message: "The start date cannot be after the end date.",
+        path: ["dateRange"],
+    }),
+    daysOfWeek: z.array(z.number()).min(1, "Please select at least one day of the week."),
+    departurePeriod: z.enum(["Morning", "Evening", "Both"]),
+    autoScheduleReturn: z.boolean().default(false),
     fare: z.coerce.number().min(0, "Fare must be a positive number.").optional(),
-    createReverse: z.boolean().optional(),
+    lifecycle: z.enum(["recycle", "delete"]),
 });
 
 type DepartureFormSchema = z.infer<typeof departureFormSchema>;
 
 export default function CreateDeparturePage() {
     const router = useRouter();
-    const [routes, setRoutes] = useState<Route[]>([]);
-    const [drivers, setDrivers] = useState<User[]>([]);
-    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-    const [existingDepartures, setExistingDepartures] = useState<ScheduledTrip[]>([]);
-    const [loading, setLoading] = useState(true);
-    const firestore = useFirestore();
+    const { firestore } = useAuth();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const { data: routes, loading: loadingRoutes } = useCollection<Route>('routes');
+    const { data: drivers, loading: loadingDrivers } = useCollection<User>('users', { queryConstraints: [where('userType', '==', 'driver')]});
+    const { data: vehicles, loading: loadingVehicles } = useCollection<Vehicle>('vehicles');
+    const { data: terminals, loading: loadingTerminals } = useCollection<Terminal>('terminals');
 
     const form = useForm<DepartureFormSchema>({
         resolver: zodResolver(departureFormSchema),
-        defaultValues: {
-            routeId: "", 
-            vehicleId: "", 
-            driverId: "", 
-            departurePeriod: "Morning", 
-            fare: undefined, 
-            departureDate: new Date(), 
-            createReverse: true
-        }
+        defaultValues: { routeId: "", daysOfWeek: [0,1,2,3,4,5,6], departurePeriod: "Both", autoScheduleReturn: true, fare: undefined, lifecycle: 'recycle' }
     });
-
-    useEffect(() => {
-        const unsubscribes: (() => void)[] = [];
-        setLoading(true);
-
-        const fetchData = async () => {
-            unsubscribes.push(onSnapshot(query(collection(firestore, 'routes')), (snapshot) => setRoutes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)))));
-            unsubscribes.push(onSnapshot(query(collection(firestore, 'vehicles')), (snapshot) => setVehicles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle)))));
-            unsubscribes.push(onSnapshot(query(collection(firestore, 'users'), where("userType", "==", "driver")), (snapshot) => setDrivers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)))));
-            unsubscribes.push(onSnapshot(query(collection(firestore, 'scheduledTrips')), (snapshot) => setExistingDepartures(snapshot.docs.map(doc => doc.data() as ScheduledTrip))));
-            setLoading(false);
-        };
-
-        fetchData();
-
-        return () => unsubscribes.forEach(unsub => unsub());
-    }, [firestore]);
-
-
-    const { routeId: selectedRouteId, vehicleId: selectedVehicleId, departureDate: selectedDate } = useWatch({ control: form.control });
     
-    const selectedRoute = useMemo(() => routes.find(r => r.id === selectedRouteId), [routes, selectedRouteId]);
-
-    const availableVehicles = useMemo(() => {
-        if (!existingDepartures || !selectedDate) return vehicles.filter(v => v.status === 'Active');
-        
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        const assignedVehicleIds = existingDepartures
-            .filter(d => d.departureDate === selectedDateStr)
-            .map(d => d.vehicleId);
-        
-        return vehicles.filter(v => v.status === 'Active' && !assignedVehicleIds.includes(v.id));
-    }, [vehicles, existingDepartures, selectedDate]);
-
-    useEffect(() => {
-        if (selectedRoute?.baseFare && form.getValues('fare') === undefined) {
-            form.setValue("fare", selectedRoute.baseFare);
-        }
-    }, [selectedRoute, form]);
+    const selectedRouteId = useWatch({ control: form.control, name: "routeId" });
+    const selectedRoute = routes?.find(r => r.id === selectedRouteId);
     
-    useEffect(() => {
-        if (selectedVehicleId) {
-            const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-            if (vehicle?.primaryDriverId && !form.getValues('driverId')) {
-                form.setValue("driverId", vehicle.primaryDriverId, { shouldValidate: true });
-            }
-        }
-    }, [selectedVehicleId, vehicles, form]);
+    const passengerVehicles = useMemo(() => vehicles?.filter(v => v.status === 'Active' && (v.serviceType === 'passenger' || v.serviceType === 'all')) || [], [vehicles]);
+    const activeDrivers = useMemo(() => drivers?.filter(d => ['Active', 'Online', 'Offline'].includes(d.status)) || [], [drivers]);
+
 
     const handleSwap = useCallback(() => {
         if (selectedRoute?.reverseRouteId) {
-            const reverseRoute = routes.find(r => r.id === selectedRoute.reverseRouteId);
+            const reverseRoute = routes?.find(r => r.id === selectedRoute.reverseRouteId);
             if (reverseRoute) {
                 form.setValue("routeId", reverseRoute.id, { shouldValidate: true });
             } else {
-                toast.info("No Reverse Route Found", { description: "The corresponding reverse route could not be found." });
+                toast.info("No Reverse Route Found");
             }
-        } else {
-            toast.info("No Reverse Route", { description: "A reverse route has not been set up for this route." });
         }
     }, [selectedRoute, routes, form]);
 
     const onSubmit = async (data: DepartureFormSchema) => {
-        const batch = writeBatch(firestore);
-
-        const mainRoute = routes.find(r => r.id === data.routeId);
-        const selectedDriver = drivers.find(d => d.id === data.driverId);
-        const selectedVehicle = vehicles.find(v => v.id === data.vehicleId);
+        if (!firestore) return toast.error("Database not ready.");
         
-        if (!mainRoute || !selectedDriver || !selectedVehicle) {
-            toast.error("Invalid route, driver, or vehicle selected. Please try again.");
+        setIsSubmitting(true);
+        const { dateRange, routeId, daysOfWeek, departurePeriod, autoScheduleReturn, fare, lifecycle } = data;
+        
+        const startDate = dateRange.from;
+        const endDate = dateRange.to || dateRange.from;
+
+        if (passengerVehicles.length === 0 || activeDrivers.length === 0) {
+            toast.error("No active vehicles or drivers available to create schedules.");
+            setIsSubmitting(false);
+            return;
+        }
+        
+        const selectedRouteData = routes?.find(r => r.id === routeId);
+        if (!selectedRouteData) {
+            toast.error("Invalid route selected.");
+            setIsSubmitting(false);
             return;
         }
 
-        const mainDepartureId = uuidv4();
-        const mainDepartureRef = doc(firestore, 'scheduledTrips', mainDepartureId);
-        const mainDepartureData: Omit<ScheduledTrip, 'passengers'> = {
-            id: mainDepartureId,
-            routeId: data.routeId,
-            routeName: mainRoute.name,
-            driverId: data.driverId,
-            driverName: selectedDriver.name,
-            vehicleId: data.vehicleId,
+        const batch = writeBatch(firestore);
+        const allDaysInRange = eachDayOfInterval({ start: startDate, end: endDate });
+        const selectedDays = allDaysInRange.filter(day => daysOfWeek.includes(day.getDay()));
+
+        if (selectedDays.length === 0) {
+            toast.error("No valid days selected in the date range.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        let departuresCreated = 0;
+        const periodsToSchedule = departurePeriod === 'Both' ? ['Morning', 'Evening'] : [departurePeriod];
+
+        const existingDeparturesSnap = await getDocs(query(collection(firestore, 'scheduledTrips'), where('departureDate', '>=', format(startDate, 'yyyy-MM-dd')), where('departureDate', '<=', format(endDate, 'yyyy-MM-dd'))));
+        const existingDeparturesByDate: Record<string, ScheduledTrip[]> = {};
+        existingDeparturesSnap.forEach(doc => {
+            const trip = doc.data() as ScheduledTrip;
+            if (!existingDeparturesByDate[trip.departureDate]) {
+                existingDeparturesByDate[trip.departureDate] = [];
+            }
+            existingDeparturesByDate[trip.departureDate].push(trip);
+        });
+
+        for (const day of selectedDays) {
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const dailySchedule: ScheduledTrip[] = [...(existingDeparturesByDate[dateStr] || [])];
+
+            const processTripsForRoute = (currentRoute: Route, periods: ('Morning' | 'Evening')[]) => {
+                for (const period of periods) {
+                    const tripAlreadyExists = dailySchedule.some(d => d.routeId === currentRoute.id && d.departurePeriod === period);
+                    if (tripAlreadyExists) {
+                        console.log(`Skipping existing trip for ${dateStr} - ${period}`);
+                        continue; 
+                    }
+
+                    // Find available resources
+                    const usedVehicleIds = new Set(dailySchedule.map(t => t.vehicleId));
+                    const usedDriverIds = new Set(dailySchedule.map(t => t.driverId));
+
+                    const assignedVehicle = passengerVehicles.find(v => !usedVehicleIds.has(v.id));
+                    const assignedDriver = activeDrivers.find(d => !usedDriverIds.has(d.id));
+
+                    if (assignedVehicle && assignedDriver) {
+                         const newTripId = uuidv4();
+                         const newTripRef = doc(firestore, 'scheduledTrips', newTripId);
+                         const newTripData: ScheduledTrip = {
+                            id: newTripId,
+                            routeId: currentRoute.id,
+                            routeName: currentRoute.name,
+                            originTerminalId: currentRoute.originTerminalId,
+                            destinationTerminalId: currentRoute.destinationTerminalId,
+                            driverId: assignedDriver.id,
+                            driverName: assignedDriver.name,
+                            vehicleId: assignedVehicle.id,
+                            departureDate: dateStr,
+                            departurePeriod: period,
             status: 'Scheduled',
             bookedSeats: [],
-            departureDate: format(data.departureDate, 'yyyy-MM-dd'),
-            departurePeriod: data.departurePeriod,
-            fare: data.fare || mainRoute.baseFare,
-        };
-        batch.set(mainDepartureRef, mainDepartureData, { merge: true });
-
-        if (data.createReverse && mainRoute.reverseRouteId) {
-            const reverseRoute = routes.find(r => r.id === mainRoute.reverseRouteId);
-            if (reverseRoute) {
-                const reverseDepartureId = uuidv4();
-                const reverseDepartureRef = doc(firestore, 'scheduledTrips', reverseDepartureId);
-                const reverseDepartureData = {
-                    ...mainDepartureData,
-                    id: reverseDepartureId,
-                    routeId: reverseRoute.id,
-                    routeName: reverseRoute.name,
-                    departurePeriod: data.departurePeriod === 'Morning' ? 'Evening' : 'Morning',
-                    fare: data.fare || reverseRoute.baseFare,
-                };
-                batch.set(reverseDepartureRef, reverseDepartureData);
+                            passengers: [],
+                            fare: fare || currentRoute.baseFare,
+                            seatHolds: {},
+                            lifecycle: lifecycle,
+                         };
+                         batch.set(newTripRef, newTripData);
+                         dailySchedule.push(newTripData); // Add to in-memory schedule for this day
+                         departuresCreated++;
+                    } else {
+                         console.warn(`Could not find available vehicle/driver for ${dateStr} - ${period}`);
+                    }
+                }
             }
+
+            // Process outbound trips
+            processTripsForRoute(selectedRouteData, periodsToSchedule);
+            
+            // Process return trips if enabled
+            if (autoScheduleReturn && selectedRouteData.reverseRouteId) {
+                const reverseRoute = routes?.find(r => r.id === selectedRouteData.reverseRouteId);
+            if (reverseRoute) {
+                    const returnPeriods = periodsToSchedule.map(p => p === 'Morning' ? 'Evening' : 'Morning') as ('Morning' | 'Evening')[];
+                    processTripsForRoute(reverseRoute, returnPeriods);
+                }
+            }
+        }
+        
+        if (departuresCreated === 0) {
+            toast.info("No New Departures Created", { description: "All available slots may be filled, or no resources were free for the selected dates." });
+            setIsSubmitting(false);
+            return;
         }
         
         try {
             await batch.commit();
-            toast.success(`Departure${data.createReverse && mainRoute.reverseRouteId ? 's' : ''} Scheduled`);
+            toast.success(`${departuresCreated} Departures Scheduled`, {
+                 description: `Successfully created trips for the selected date range.`
+            });
             router.push('/admin/dashboard/departures');
         } catch (error: any) {
-            const permissionError = new FirestorePermissionError({ path: mainDepartureRef.path, operation: 'write', requestResourceData: mainDepartureData as any });
-            errorEmitter.emit('permission-error', permissionError);
-            toast.error("Failed to save departure. Check console for details.");
-            console.error("Firebase write error:", error);
+            toast.error("Failed to schedule departures.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
     
-    if (loading) {
+    if (loadingRoutes || loadingDrivers || loadingVehicles || loadingTerminals) {
         return <Preloader />;
     }
 
     return (
         <div className="flex flex-col h-full">
-            <SubHeader title="Schedule New Departure">
-                <Button type="submit" form="create-departure-form" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? "Scheduling..." : "Schedule Departure"}
+            <SubHeader title="Schedule Departures">
+                <Button type="submit" form="create-departure-form" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Generate Schedules"}
                 </Button>
             </SubHeader>
             <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-                <Card className="max-w-2xl mx-auto">
-                    <CardContent className="p-4 md:p-6">
+                 <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>How Batch Scheduling Works</AlertTitle>
+                    <AlertDescription>
+                        This tool creates trips for each selected day within your date range. It automatically cycles through available vehicles and drivers to prevent daily conflicts.
+                    </AlertDescription>
+                </Alert>
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium">Active Passenger Vehicles</CardTitle>
+                            <Car className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{passengerVehicles.length}</div>
+                            {passengerVehicles.length === 0 && <Link href="/admin/dashboard/settings/vehicles" className="text-xs text-primary hover:underline">Add or activate vehicles</Link>}
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium">Available Drivers</CardTitle>
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{activeDrivers.length}</div>
+                             {activeDrivers.length === 0 && <Link href="/admin/dashboard/drivers" className="text-xs text-primary hover:underline">Add or activate drivers</Link>}
+                        </CardContent>
+                    </Card>
+                </div>
+                <Card className="max-w-2xl mx-auto mt-6">
+                    <CardContent className="p-6">
                         <Form {...form}>
                             <form id="create-departure-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                             <FormField control={form.control} name="routeId" render={({ field }) => (
@@ -205,68 +270,60 @@ export default function CreateDeparturePage() {
                                     <div className="flex items-center gap-2">
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Select a route"/></SelectTrigger></FormControl>
-                                            <SelectContent>{routes.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                                                <SelectContent>{routes?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
                                         </Select>
                                         <Button type="button" variant="outline" size="icon" onClick={handleSwap} disabled={!selectedRoute?.reverseRouteId}><RefreshCw className="h-4 w-4"/></Button>
                                     </div>
                                     <FormMessage/>
                                 </FormItem>
                             )}/>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <FormField control={form.control} name="departureDate" render={({ field }) => (
+                                <FormField control={form.control} name="dateRange" render={({ field }) => (
                                     <FormItem className="flex flex-col">
-                                        <FormLabel>Departure Date</FormLabel>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <FormControl>
-                                                    <Button variant="outline" className="h-12 justify-start font-normal">
-                                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50"/>
-                                                    </Button>
-                                                </FormControl>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} onDayClick={() => {}} disabled={(date) => date < new Date(new Date().toDateString())}/>
-                                            </PopoverContent>
-                                        </Popover>
+                                        <FormLabel>Date Range</FormLabel>
+                                        <DatePickerWithRange date={field.value} onDateChange={field.onChange} />
                                         <FormMessage/>
                                     </FormItem>
                                 )}/>
-                                <FormField control={form.control} name="departurePeriod" render={({ field }) => (
+
+                                <FormField control={form.control} name="daysOfWeek" render={() => (
+                                    <FormItem>
+                                         <FormLabel>Days of the Week</FormLabel>
+                                         <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                                             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
+                                                 <FormField key={index} control={form.control} name="daysOfWeek" render={({ field }) => (
+                                                      <FormItem className="flex items-center gap-2 space-y-0 p-2 rounded-md bg-muted/50 border">
+                                                        <FormControl>
+                                                            <Checkbox
+                                                                checked={field.value?.includes(index)}
+                                                                onCheckedChange={(checked) => {
+                                                                    return checked
+                                                                        ? field.onChange([...field.value, index])
+                                                                        : field.onChange(field.value?.filter((value) => value !== index))
+                                                                }}
+                                                            />
+                                                        </FormControl>
+                                                        <FormLabel className="font-normal">{day}</FormLabel>
+                                                    </FormItem>
+                                                 )} />
+                                             ))}
+                                         </div>
+                                        <FormMessage/>
+                                    </FormItem>
+                                )} />
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                     <FormField control={form.control} name="departurePeriod" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Departure Period</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl><SelectTrigger className="h-12"><SelectValue/></SelectTrigger></FormControl>
-                                            <SelectContent><SelectItem value="Morning">Morning</SelectItem><SelectItem value="Evening">Evening</SelectItem></SelectContent>
+                                                <SelectContent>
+                                                    <SelectItem value="Both">Both (Morning & Evening)</SelectItem>
+                                                    <SelectItem value="Morning">Morning Only</SelectItem>
+                                                    <SelectItem value="Evening">Evening Only</SelectItem>
+                                                </SelectContent>
                                         </Select>
                                         <FormMessage />
-                                    </FormItem>
-                                )}/>
-                            </div>
-                            <FormField control={form.control} name="vehicleId" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Vehicle</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="Select an available vehicle"/></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            {availableVehicles.length > 0 ? (
-                                                availableVehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.make} {v.model} ({v.licensePlate})</SelectItem>)
-                                            ) : (
-                                                <p className="p-2 text-xs text-muted-foreground">No vehicles available for this date.</p>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage/>
-                                </FormItem>
-                            )}/>
-                            <FormField control={form.control} name="driverId" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Assigned Driver</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="Select a driver"/></SelectTrigger></FormControl>
-                                        <SelectContent>{drivers.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                    <FormMessage/>
                                 </FormItem>
                             )}/>
                             <FormField control={form.control} name="fare" render={({ field }) => (
@@ -276,15 +333,49 @@ export default function CreateDeparturePage() {
                                     <FormMessage/>
                                 </FormItem>
                             )}/>
-                            <FormField control={form.control} name="createReverse" render={({ field }) => (
-                                <FormItem className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                </div>
+                                <FormField control={form.control} name="autoScheduleReturn" render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-muted/50">
                                     <div className="space-y-0.5">
-                                        <FormLabel>Create Reverse Trip</FormLabel>
-                                        <FormDescription className="text-xs">Automatically schedule the return trip for the opposing period.</FormDescription>
+                                            <FormLabel>Auto-schedule return trips</FormLabel>
+                                            <FormDescription className="text-xs">
+                                                If a reverse route exists, automatically schedule return trips for the same day.
+                                            </FormDescription>
                                     </div>
                                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={!selectedRoute?.reverseRouteId} /></FormControl>
                                 </FormItem>
                             )}/>
+                                <FormField control={form.control} name="lifecycle" render={({ field }) => (
+                                    <FormItem className="space-y-3">
+                                        <FormLabel>Lifecycle Policy</FormLabel>
+                                        <FormDescription>Choose what happens to trips after they are completed.</FormDescription>
+                                        <FormControl>
+                                            <RadioGroup
+                                            onValueChange={field.onChange}
+                                            defaultValue={field.value}
+                                            className="flex flex-col space-y-1"
+                                            >
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                <RadioGroupItem value="recycle" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                Recycle: Automatically re-schedule for the next available day.
+                                                </FormLabel>
+                                            </FormItem>
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                <RadioGroupItem value="delete" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">
+                                                Delete: Automatically delete the trip record after completion.
+                                                </FormLabel>
+                                            </FormItem>
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
                             </form>
                         </Form>
                     </CardContent>

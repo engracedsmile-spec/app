@@ -4,7 +4,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, MoreHorizontal, Edit, Trash2, CalendarPlus, Route as RouteIcon, User as UserIcon, Bus } from "lucide-react";
+import { Plus, MoreHorizontal, Edit, Trash2, CalendarPlus, Route as RouteIcon, User as UserIcon, Bus, Calendar, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
 import { collection, query, orderBy, doc, deleteDoc, writeBatch, onSnapshot, getDoc } from 'firebase/firestore';
@@ -127,7 +127,10 @@ export default function DeparturesPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Manage Scheduled Departures</CardTitle>
-                        <CardDescription>View, create, and manage all upcoming and past vehicle departures.</CardDescription>
+                        <CardDescription>
+                            View, create, and manage all upcoming and past vehicle departures. 
+                            Use the advanced batch scheduling system to create multiple departures across date ranges with automatic resource assignment.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                        {isMobile ? (
