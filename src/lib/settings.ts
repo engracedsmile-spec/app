@@ -120,8 +120,26 @@ export const getOperationsSettings = async (): Promise<OperationsSettings> => {
 };
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
+    // When running on the server we should rely on the Admin SDK to avoid Web SDK limitations
+    if (typeof window === 'undefined') {
+        try {
+            const { getFirebaseAdmin } = await import('@/lib/firebase/admin');
+            const { adminDb } = getFirebaseAdmin();
+            const docSnap = await adminDb.doc('settings/payment').get();
+
+            if (docSnap.exists) {
+                return { ...defaultPaymentSettings, ...docSnap.data() } as PaymentSettings;
+            }
+
+            return defaultPaymentSettings;
+        } catch (e) {
+            console.error("Failed to fetch payment settings (server)", e);
+            return defaultPaymentSettings;
+        }
+    }
+
+    // Client-side fallback uses the Firebase Web SDK
     const firebaseApp = getClientApp();
-    
     const db = getFirestore(firebaseApp);
     const docRef = doc(db, "settings", "payment");
     
@@ -137,7 +155,7 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
             return defaultPaymentSettings;
         }
     } catch (e) {
-         console.error("Failed to fetch payment settings", e);
+         console.error("Failed to fetch payment settings (client)", e);
         return defaultPaymentSettings;
     }
 }

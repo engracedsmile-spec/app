@@ -22,6 +22,7 @@ import * as bcrypt from 'bcryptjs';
 import { useForm } from "react-hook-form";
 import { ResponsiveDialog } from "@/components/responsive-dialog";
 import { DrawerHeader, DrawerTitle, DrawerDescription, DrawerBody, DrawerFooter } from "@/components/ui/drawer";
+import { useRouter } from "next/navigation";
 
 
 const fundWalletSchema = z.object({
@@ -250,7 +251,7 @@ export const WalletCard = () => {
 
     return (
         <Card className="relative overflow-hidden bg-primary/5 border-primary/20 shadow-lg">
-            <div className="absolute -top-4 -right-4 w-24 h-24 text-primary/10">
+            <div className="absolute -top-4 -right-4 w-24 h-24 text-primary/10 pointer-events-none">
                 <Wallet className="w-full h-full" strokeWidth={1} />
             </div>
             <CardContent className="p-6 space-y-4 relative z-10">
@@ -261,7 +262,7 @@ export const WalletCard = () => {
                             {isBalanceVisible ? formattedBalance : '∗∗∗∗∗∗∗'}
                         </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 relative z-20">
                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsBalanceVisible(!isBalanceVisible)}>
                             {isBalanceVisible ? <EyeOff className="h-5 w-5 text-muted-foreground" /> : <Eye className="h-5 w-5 text-muted-foreground" />}
                         </Button>

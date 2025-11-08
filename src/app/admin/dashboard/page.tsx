@@ -3,7 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Users, DollarSign, Activity, CheckCircle, Clock, Truck, Car, Package, ArrowRight, Loader2, BarChart, LineChart, RefreshCw } from 'lucide-react';
+import { Users, DollarSign, Activity, CheckCircle, Clock, Truck, Car, Package, ArrowRight, Loader2, BarChart, LineChart, RefreshCw, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,45 @@ import Link from 'next/link';
 import { AdminHeader } from './header';
 import { usePreloader } from '@/context/preloader-context';
 import { useRouter } from 'next/navigation';
+import { LoyaltySystem } from './components/loyalty-system';
+import { AdvancedBooking } from './components/advanced-booking';
+import dynamic from 'next/dynamic';
+import { ErrorBoundary } from '@/components/error-boundary';
+
+const UIImprovements = dynamic(
+  () => import('./components/ui-improvements').then(mod => ({ default: mod.UIImprovements })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-32 bg-muted rounded"></div>
+          <div className="h-32 bg-muted rounded"></div>
+        </div>
+      </div>
+    )
+  }
+);
+
+// Error boundary wrapper for UIImprovements
+const UIImprovementsWrapper = () => {
+  // Since UIImprovements is already dynamically imported with ssr: false,
+  // we can render it directly. The dynamic import handles the loading state.
+  return (
+    <React.Suspense
+      fallback={
+        <div className="space-y-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-32 bg-muted rounded"></div>
+            <div className="h-32 bg-muted rounded"></div>
+          </div>
+        </div>
+      }
+    >
+      <UIImprovements />
+    </React.Suspense>
+  );
+};
 
 const fetcher = async (url: string, idToken: string | undefined) => {
     if (!idToken) {
@@ -244,10 +283,12 @@ const AnalyticsView = ({ bookings, users, loading }: { bookings: Booking[], user
         }, {} as { [key: string]: number });
         
         const topDrivers = users.filter((u) => u.userType === 'driver').map((driver) => {
-            const completedTrips = bookings.filter((s) => s.driverId === driver.id && (s.status === 'Completed' || s.status === 'Delivered'));
+            // For driver trips, we need to look at scheduled trips or bookings associated with vehicles
+            // Since Booking doesn't have driverId, we'll count based on user association or skip for now
+            const completedTrips = bookings.filter((s) => (s.status === 'Completed' || s.status === 'Delivered'));
             return {
                 id: driver.id, name: driver.name,
-                trips: completedTrips.length
+                trips: 0 // TODO: Implement proper driver trip counting when driverId is added to bookings
             }
         }).sort((a,b) => b.trips - a.trips).slice(0, 5);
 
@@ -322,11 +363,29 @@ export default function AdminDashboardPage() {
     
     useEffect(() => {
         if (!api) return;
+        
+        const updateCurrent = () => {
+            try {
+                setCurrent(api.selectedScrollSnap());
+            } catch (error) {
+                console.error('Error updating carousel current index:', error);
+            }
+        };
+        
         setCurrent(api.selectedScrollSnap());
-        api.on("select", () => setCurrent(api.selectedScrollSnap()));
+        api.on("select", updateCurrent);
+        
+        // Cleanup function
+        return () => {
+            try {
+                api.off("select", updateCurrent);
+            } catch (error) {
+                console.error('Error cleaning up carousel listener:', error);
+            }
+        };
     }, [api]);
 
-    const handleSyncPaystack = async () => {
+    const handleSyncPaystack = React.useCallback(async () => {
         if (!idToken) return;
         
         setIsSyncing(true);
@@ -361,42 +420,81 @@ export default function AdminDashboardPage() {
         } finally {
             setIsSyncing(false);
         }
-    };
+    }, [idToken]);
     
-    const views = [
-        { key: 'operations', title: 'Operations', icon: Activity, component: <OperationsView bookings={data?.bookings || []} loading={isLoading} /> },
-        { key: 'financials', title: 'Financials', icon: DollarSign, component: <FinancialsView bookings={data?.bookings || []} expenses={data?.expenses || []} payments={data?.payments || []} transfers={data?.transfers || []} loading={isLoading} isSyncing={isSyncing} handleSyncPaystack={handleSyncPaystack} /> },
-        { key: 'analytics', title: 'Analytics', icon: BarChart, component: <AnalyticsView bookings={data?.bookings || []} users={data?.users || []} loading={isLoading} /> },
-    ];
+    // Define view configuration - separate data from rendering
+    const viewsConfig = useMemo(() => [
+        { key: 'operations', title: 'Operations', icon: Activity },
+        { key: 'financials', title: 'Financials', icon: DollarSign },
+        { key: 'analytics', title: 'Analytics', icon: BarChart },
+        { key: 'loyalty', title: 'Loyalty Program', icon: Users },
+        { key: 'advanced-booking', title: 'Advanced Booking', icon: Package },
+        // Temporarily disabled to isolate the error
+        // { key: 'ui-improvements', title: 'UI Improvements', icon: Settings },
+    ], []);
+    
+    // Render component function - this avoids creating JSX in useMemo
+    const renderView = React.useCallback((viewKey: string) => {
+        switch (viewKey) {
+            case 'operations':
+                return <OperationsView bookings={data?.bookings || []} loading={isLoading} />;
+            case 'financials':
+                return <FinancialsView bookings={data?.bookings || []} expenses={data?.expenses || []} payments={data?.payments || []} transfers={data?.transfers || []} loading={isLoading} isSyncing={isSyncing} handleSyncPaystack={handleSyncPaystack} />;
+            case 'analytics':
+                return <AnalyticsView bookings={data?.bookings || []} users={data?.users || []} loading={isLoading} />;
+            case 'loyalty':
+                return <LoyaltySystem users={data?.users || []} bookings={data?.bookings || []} loading={isLoading} />;
+            case 'advanced-booking':
+                return <AdvancedBooking bookings={data?.bookings || []} scheduledTrips={data?.scheduledTrips || []} loading={isLoading} />;
+            case 'ui-improvements':
+                // Temporarily return placeholder to isolate error
+                return <div className="p-4 text-center">UI Improvements temporarily disabled</div>;
+            default:
+                return null;
+        }
+    }, [data?.bookings, data?.expenses, data?.payments, data?.transfers, data?.users, data?.vehicles, data?.scheduledTrips, isLoading, isSyncing, handleSyncPaystack]);
     
     return (
-        <>
+        <ErrorBoundary>
             <AdminHeader />
             <div className="p-4 md:p-6 space-y-6">
                 <div className="w-full flex justify-center">
                     <div className="flex items-center gap-2 p-1 rounded-full bg-muted">
-                        {views.map((view, index) => (
-                            <Button
-                                key={view.key}
-                                variant={current === index ? 'default' : 'ghost'}
-                                size="sm"
-                                className="rounded-full h-9 px-4"
-                                onClick={() => api?.scrollTo(index)}
-                            >
-                                <view.icon className="mr-2 h-4 w-4" />
-                                {view.title}
-                            </Button>
-                        ))}
+                        {viewsConfig.map((view, index) => {
+                            const Icon = view.icon;
+                            return (
+                                <Button
+                                    key={view.key}
+                                    variant={current === index ? 'default' : 'ghost'}
+                                    size="sm"
+                                    className="rounded-full h-9 px-4"
+                                    onClick={() => api?.scrollTo(index)}
+                                >
+                                    <Icon className="mr-2 h-4 w-4" />
+                                    {view.title}
+                                </Button>
+                            );
+                        })}
                     </div>
                 </div>
-                <Carousel setApi={setApi} className="w-full">
-                    <CarouselContent>
-                        {views.map((view) => (
-                            <CarouselItem key={view.key}>{view.component}</CarouselItem>
-                        ))}
-                    </CarouselContent>
-                </Carousel>
+                <ErrorBoundary>
+                    <Carousel setApi={setApi} className="w-full">
+                        <CarouselContent>
+                            {viewsConfig.map((view) => (
+                                <CarouselItem key={view.key}>
+                                    <ErrorBoundary fallback={
+                                        <div className="p-4 text-center text-muted-foreground">
+                                            Error loading {view.title}. Please try refreshing.
+                                        </div>
+                                    }>
+                                        {renderView(view.key)}
+                                    </ErrorBoundary>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                    </Carousel>
+                </ErrorBoundary>
             </div>
-        </>
+        </ErrorBoundary>
     )
 }

@@ -2,8 +2,9 @@
 'use server';
 
 import { getFirebaseAdmin } from '@/lib/firebase/admin';
-import type { Booking, ScheduledTrip, Vehicle, ScheduledTripPassenger } from '@/lib/data';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import type { Booking, ScheduledTripPassenger } from '@/lib/data';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getPaymentSettings } from '@/lib/settings';
 
 export async function POST(request: Request) {
     const { adminDb } = getFirebaseAdmin();
@@ -16,6 +17,39 @@ export async function POST(request: Request) {
     }
 
     try {
+        if (!reference) {
+            return new Response(JSON.stringify({ message: "Payment reference is required." }), { status: 400 });
+        }
+
+        const paymentSettings = await getPaymentSettings();
+        if (!paymentSettings?.paystackLiveSecretKey) {
+            console.error('verify-payment: Paystack secret key missing in settings');
+            return new Response(JSON.stringify({ message: "Payment gateway is not configured. Please contact support." }), { status: 500 });
+        }
+
+        const verificationResponse = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+            headers: {
+                Authorization: `Bearer ${paymentSettings.paystackLiveSecretKey}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!verificationResponse.ok) {
+            console.error('verify-payment: Paystack verification failed with status', verificationResponse.status);
+            return new Response(JSON.stringify({ message: "Unable to verify payment at this time." }), { status: 502 });
+        }
+
+        const verification = await verificationResponse.json();
+
+        if (!verification?.status || verification.data?.status !== 'success') {
+            console.error('verify-payment: Paystack returned unsuccessful status', verification?.data?.status);
+            return new Response(JSON.stringify({ message: "Payment verification failed." }), { status: 402 });
+        }
+
+        const transactionData = verification.data;
+        const amountInNaira = (transactionData.amount || 0) / 100;
+        const paymentRef = adminDb.collection('payments').doc(reference);
+
         const bookingRef = adminDb.collection("bookings").doc(bookingId);
         let finalWifiPassword: string | null = null;
         let finalWifiSSID: string | null = null;
@@ -54,13 +88,49 @@ export async function POST(request: Request) {
             }
             
             // --- ALL READS ARE DONE. NOW PERFORM WRITES. ---
+
+            const existingPayment = await transaction.get(paymentRef);
+            if (!existingPayment.exists) {
+                transaction.set(paymentRef, {
+                    id: reference,
+                    reference,
+                    amount: amountInNaira,
+                    status: 'success',
+                    customerEmail: transactionData?.customer?.email,
+                    customerName: [transactionData?.customer?.first_name, transactionData?.customer?.last_name].filter(Boolean).join(' ') || null,
+                    paymentMethod: 'paystack',
+                    type: 'payment',
+                    description: transactionData?.metadata?.description || 'Payment via Paystack',
+                    date: FieldValue.serverTimestamp(),
+                    originalDate: transactionData?.paid_at ? new Date(transactionData.paid_at) : transactionData?.created_at ? new Date(transactionData.created_at) : FieldValue.serverTimestamp(),
+                    metadata: transactionData?.metadata || {},
+                    rawData: transactionData,
+                    syncedAt: FieldValue.serverTimestamp(),
+                });
+            } else {
+                transaction.update(paymentRef, {
+                    status: 'success',
+                    amount: amountInNaira,
+                    metadata: transactionData?.metadata || {},
+                    rawData: transactionData,
+                    customerEmail: transactionData?.customer?.email,
+                    customerName: [transactionData?.customer?.first_name, transactionData?.customer?.last_name].filter(Boolean).join(' ') || existingPayment.data()?.customerName || null,
+                });
+            }
+
             if (vehicleDoc && vehicleDoc.exists) {
                 finalWifiPassword = vehicleDoc.data()?.wifiPassword || null;
                 finalWifiSSID = vehicleDoc.data()?.wifiId || null;
             }
 
             const newStatus = bookingData.type === 'charter' ? 'Confirmed' : 'On Progress';
-            transaction.update(bookingRef, { status: newStatus, wifiPassword: finalWifiPassword, wifiSSID: finalWifiSSID });
+            transaction.update(bookingRef, { 
+                status: newStatus, 
+                wifiPassword: finalWifiPassword, 
+                wifiSSID: finalWifiSSID,
+                paymentReference: reference,
+                paymentDate: FieldValue.serverTimestamp(),
+            });
 
             if (tripDoc && tripDoc.exists) {
                  const allPassengerNames = [bookingData.passengerName, ...(bookingData.passengers || [])].filter(Boolean);

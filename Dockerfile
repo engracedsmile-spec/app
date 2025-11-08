@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json ./
-RUN npm ci
+# Install dependencies with optimizations to reduce disk usage
+RUN npm ci --prefer-offline --no-audit --no-fund && \
+    npm cache clean --force
 
 # Stage 2: Builder
 FROM node:18-alpine AS builder

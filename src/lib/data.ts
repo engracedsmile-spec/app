@@ -1,7 +1,7 @@
 
 import type { Role } from "@/lib/permissions";
 
-export type Status = 'On Progress' | 'Delayed' | 'Cancelled' | 'Completed' | 'Boarding' | 'In Transit' | 'Pending';
+export type Status = 'On Progress' | 'Delayed' | 'Cancelled' | 'Completed' | 'Boarding' | 'In Transit' | 'Pending' | 'Delivered';
 export type UserStatus = 'Active' | 'Suspended' | 'Inactive' | 'Online' | 'Offline';
 
 export type PaymentSettings = {
