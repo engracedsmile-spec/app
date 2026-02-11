@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdmin, checkPermissions, verifyIdToken } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getPaymentSettings } from '@/lib/settings';
+
+function formatDate(date: Date) {
+  // Paystack expects YYYY-MM-DD
+  return date.toISOString().split('T')[0];
+}
 
 export async function POST(request: Request) {
   try {
@@ -14,11 +19,27 @@ export async function POST(request: Request) {
     const idToken = authHeader.split('Bearer ')[1];
     await checkPermissions(idToken, 'managePayouts');
 
-    const { startDate, endDate } = await request.json();
-    
-    if (!startDate || !endDate) {
-      return NextResponse.json({ message: 'Start date and end date are required' }, { status: 400 });
+    const body = await request.json().catch(() => ({}));
+    let { startDate, endDate, fullSync, days }: { startDate?: string; endDate?: string; fullSync?: boolean; days?: number } = body || {};
+
+    const today = new Date();
+    const effectiveEndDate = endDate ? new Date(endDate) : today;
+
+    let effectiveStartDate: Date;
+    if (startDate) {
+      effectiveStartDate = new Date(startDate);
+    } else if (fullSync) {
+      // Go far back to ensure we capture historical transactions
+      effectiveStartDate = new Date('2015-01-01T00:00:00Z');
+    } else if (typeof days === 'number' && !Number.isNaN(days) && days > 0) {
+      effectiveStartDate = new Date(effectiveEndDate.getTime() - days * 24 * 60 * 60 * 1000);
+    } else {
+      // Default to 120 days history to cover ~4 months of transactions
+      effectiveStartDate = new Date(effectiveEndDate.getTime() - 120 * 24 * 60 * 60 * 1000);
     }
+
+    const startDateString = formatDate(effectiveStartDate);
+    const endDateString = formatDate(effectiveEndDate);
 
     const paymentSettings = await getPaymentSettings();
     const secretKey = paymentSettings?.paystackLiveSecretKey;
@@ -27,10 +48,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Paystack secret key not configured' }, { status: 500 });
     }
 
-    console.log('Syncing Paystack payments from', startDate, 'to', endDate);
+    console.log('Syncing Paystack payments from', startDateString, 'to', endDateString, fullSync ? '(full sync enabled)' : '');
 
     // Fetch transactions from Paystack API
-    const transactions = await fetchPaystackTransactions(secretKey, startDate, endDate);
+    const transactions = await fetchPaystackTransactions(secretKey, startDateString, endDateString);
     
     let syncedCount = 0;
     let skippedCount = 0;
@@ -46,6 +67,7 @@ export async function POST(request: Request) {
         }
 
         // Create payment record
+        const paymentDate = transaction.paid_at ? new Date(transaction.paid_at) : transaction.created_at ? new Date(transaction.created_at) : new Date();
         const paymentData = {
           id: transaction.reference,
           reference: transaction.reference,
@@ -56,8 +78,8 @@ export async function POST(request: Request) {
           paymentMethod: 'paystack',
           type: 'payment',
           description: transaction.metadata?.description || 'Payment via Paystack',
-          date: FieldValue.serverTimestamp(),
-          originalDate: new Date(transaction.created_at),
+          date: Timestamp.fromDate(paymentDate),
+          originalDate: Timestamp.fromDate(paymentDate),
           metadata: transaction.metadata || {},
           rawData: transaction,
           syncedAt: FieldValue.serverTimestamp()
@@ -123,14 +145,21 @@ export async function POST(request: Request) {
   }
 }
 
-async function fetchPaystackTransactions(secretKey: string, startDate: string, endDate: string) {
+async function fetchPaystackTransactions(secretKey: string, startDate?: string, endDate?: string) {
   const allTransactions: any[] = [];
   let page = 1;
   const perPage = 100;
 
   try {
     while (true) {
-      const url = `https://api.paystack.co/transaction?perPage=${perPage}&page=${page}&from=${startDate}&to=${endDate}`;
+      const params = new URLSearchParams({
+        perPage: perPage.toString(),
+        page: page.toString(),
+      });
+      if (startDate) params.append('from', startDate);
+      if (endDate) params.append('to', endDate);
+
+      const url = `https://api.paystack.co/transaction?${params.toString()}`;
       
       const response = await fetch(url, {
         headers: {

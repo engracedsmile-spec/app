@@ -4,7 +4,7 @@
 import { getFirebaseAdmin } from '@/lib/firebase/admin';
 import type { Booking } from '@/lib/data';
 import { NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getPaymentSettings } from '@/lib/settings';
 
 export async function POST(request: Request) {
@@ -46,6 +46,8 @@ export async function POST(request: Request) {
 
         const transactionData = verification.data;
         const amountInNaira = (transactionData.amount || 0) / 100;
+        const paymentDate = transactionData?.paid_at ? new Date(transactionData.paid_at) : transactionData?.created_at ? new Date(transactionData.created_at) : new Date();
+        const firebasePaymentDate = Timestamp.fromDate(paymentDate);
         const paymentRef = adminDb.collection('payments').doc(reference);
 
         const bookingRef = adminDb.collection("bookings").doc(bookingId);
@@ -74,8 +76,8 @@ export async function POST(request: Request) {
                     paymentMethod: 'paystack',
                     type: 'payment',
                     description: transactionData?.metadata?.description || 'Payment via Paystack',
-                    date: FieldValue.serverTimestamp(),
-                    originalDate: transactionData?.paid_at ? new Date(transactionData.paid_at) : transactionData?.created_at ? new Date(transactionData.created_at) : FieldValue.serverTimestamp(),
+                    date: firebasePaymentDate,
+                    originalDate: firebasePaymentDate,
                     metadata: transactionData?.metadata || {},
                     rawData: transactionData,
                     syncedAt: FieldValue.serverTimestamp(),
@@ -88,13 +90,15 @@ export async function POST(request: Request) {
                     rawData: transactionData,
                     customerEmail: transactionData?.customer?.email,
                     customerName: [transactionData?.customer?.first_name, transactionData?.customer?.last_name].filter(Boolean).join(' ') || existingPayment.data()?.customerName || null,
+                    date: firebasePaymentDate,
+                    originalDate: firebasePaymentDate,
                 });
             }
 
             transaction.update(bookingRef, { 
                 status: 'Confirmed',
                 paymentReference: reference,
-                paymentDate: FieldValue.serverTimestamp(),
+                paymentDate: firebasePaymentDate,
             });
         });
         

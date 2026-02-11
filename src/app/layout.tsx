@@ -18,6 +18,7 @@ import FirebaseClientProvider from "@/firebase/client-provider";
 import FcmInitializer from "@/components/fcm-initializer";
 import { Suspense } from "react";
 import { Preloader } from "@/components/preloader";
+import Script from "next/script";
 
 
 const inter = Inter({
@@ -63,6 +64,18 @@ export default function RootLayout({
          <link rel="manifest" href="/manifest.json" />
        </head>
        <body className="font-body antialiased" suppressHydrationWarning>
+         <Script
+           src="https://www.googletagmanager.com/gtag/js?id=G-KN2D971B7J"
+           strategy="afterInteractive"
+         />
+         <Script id="google-analytics" strategy="afterInteractive">
+           {`
+             window.dataLayer = window.dataLayer || [];
+             function gtag(){dataLayer.push(arguments);}
+             gtag('js', new Date());
+             gtag('config', 'G-KN2D971B7J');
+           `}
+         </Script>
          <ThemeProvider
             attribute="class"
             defaultTheme="dark"

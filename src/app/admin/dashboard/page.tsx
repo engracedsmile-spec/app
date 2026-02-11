@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Booking, FundRequest, Expense } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { Timestamp } from 'firebase/firestore';
 import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
@@ -177,8 +177,12 @@ const FinancialsView = ({ bookings, expenses, payments, transfers, loading, isSy
         const pendingExpenses = expenses.filter(e => e.status === 'pending').reduce((acc, e) => acc + e.amount, 0);
         
         // Add Paystack payment data
-        const totalPaystackPayments = payments.filter(p => p.status === 'success').reduce((acc, p) => acc + (p.amount || 0), 0);
-        const totalTransfers = transfers.filter(t => t.status === 'success').reduce((acc, t) => acc + (t.amount || 0), 0);
+        const totalPaystackPayments = payments
+            .filter(p => p.status === 'success')
+            .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+        const totalTransfers = transfers
+            .filter(t => t.status === 'success')
+            .reduce((acc, t) => acc + Number(t.amount || 0), 0);
         
         return { totalRevenue, totalExpenses, pendingExpenses, totalPaystackPayments, totalTransfers };
     }, [bookings, expenses, payments, transfers]);
@@ -238,7 +242,12 @@ const FinancialsView = ({ bookings, expenses, payments, transfers, loading, isSy
                                         <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-12 w-full"/></TableCell></TableRow>
                                     )) : payments.length > 0 ? payments.slice(0,5).map((payment: any) => (
                                         <TableRow key={payment.id}>
-                                            <TableCell>{payment.customerName || payment.customerEmail || 'Unknown'}</TableCell>
+                                            <TableCell>
+                                                {(() => {
+                                                    const name = typeof payment.customerName === 'string' ? payment.customerName.trim() : '';
+                                                    return name || payment.customerEmail || 'Unknown';
+                                                })()}
+                                            </TableCell>
                                             <TableCell>{new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(payment.amount)}</TableCell>
                                             <TableCell>
                                                 <span className={`px-2 py-1 rounded-full text-xs ${
@@ -250,14 +259,33 @@ const FinancialsView = ({ bookings, expenses, payments, transfers, loading, isSy
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                {payment.originalDate ? 
-                                                    new Date(payment.originalDate).toLocaleDateString() :
-                                                    payment.date ? (
-                                                        payment.date instanceof Date ? 
-                                                            payment.date.toLocaleDateString() :
-                                                            (payment.date as any)?.toDate?.()?.toLocaleDateString() || 
-                                                            new Date(payment.date).toLocaleDateString()
-                                                    ) : 'N/A'}
+                                                {(() => {
+                                                    const toDate = (value: any): Date | null => {
+                                                        if (!value) return null;
+                                                        if (value instanceof Date) return value;
+                                                        if (typeof value === 'string' || typeof value === 'number') {
+                                                            const parsed = new Date(value);
+                                                            return isNaN(parsed.getTime()) ? null : parsed;
+                                                        }
+                                                        if (typeof value === 'object') {
+                                                            if (typeof value.toDate === 'function') {
+                                                                try {
+                                                                    return value.toDate();
+                                                                } catch (error) {
+                                                                    console.error('Failed to convert timestamp with toDate():', error);
+                                                                }
+                                                            }
+                                                            const seconds = typeof value.seconds === 'number' ? value.seconds : typeof value._seconds === 'number' ? value._seconds : null;
+                                                            if (seconds !== null) {
+                                                                const nanos = typeof value.nanoseconds === 'number' ? value.nanoseconds : typeof value._nanoseconds === 'number' ? value._nanoseconds : 0;
+                                                                return new Date(seconds * 1000 + nanos / 1_000_000);
+                                                            }
+                                                        }
+                                                        return null;
+                                                    };
+                                                    const resolved = toDate(payment.originalDate) || toDate(payment.date);
+                                                    return resolved ? resolved.toLocaleDateString() : 'N/A';
+                                                })()}
                                             </TableCell>
                                         </TableRow>
                                     )) : (
@@ -350,6 +378,7 @@ export default function AdminDashboardPage() {
     const [api, setApi] = React.useState<CarouselApi>()
     const [current, setCurrent] = React.useState(0)
     const [isSyncing, setIsSyncing] = React.useState(false)
+    const { mutate } = useSWRConfig();
 
     useEffect(() => {
         firebaseUser?.getIdToken().then(setIdToken);
@@ -391,16 +420,13 @@ export default function AdminDashboardPage() {
         setIsSyncing(true);
         try {
             // Get date range for last 30 days
-            const endDate = new Date().toISOString().split('T')[0];
-            const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            
             const response = await fetch('/api/admin/sync-paystack', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${idToken}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ startDate, endDate }),
+                body: JSON.stringify({ fullSync: true }),
             });
 
             const result = await response.json();
@@ -409,8 +435,14 @@ export default function AdminDashboardPage() {
                 toast.success("Sync Complete", { 
                     description: `Synced ${result.syncedCount} payments, skipped ${result.skippedCount} existing payments.` 
                 });
-                // Refresh the data
-                window.location.reload();
+                // Refresh the dashboard data – fall back to full reload if revalidation fails
+                const key: [string, string] = ['/api/admin/data', idToken];
+                try {
+                    await mutate(key, () => fetcher('/api/admin/data', idToken), { revalidate: false, throwOnError: true });
+                } catch (mutationError) {
+                    console.error('Dashboard data revalidation failed, falling back to hard reload:', mutationError);
+                    window.location.reload();
+                }
             } else {
                 toast.error("Sync Failed", { description: result.message });
             }
@@ -420,7 +452,7 @@ export default function AdminDashboardPage() {
         } finally {
             setIsSyncing(false);
         }
-    }, [idToken]);
+    }, [idToken, mutate]);
     
     // Define view configuration - separate data from rendering
     const viewsConfig = useMemo(() => [
